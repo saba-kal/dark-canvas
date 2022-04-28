@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
+namespace DarkCanvas.ProceduralTerrain
 {
     public struct MapThreadInfo<T>
     {

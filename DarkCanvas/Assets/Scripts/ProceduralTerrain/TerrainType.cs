@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
 
-namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
+namespace DarkCanvas.ProceduralTerrain
 {
     [Serializable]
     public class TerrainType

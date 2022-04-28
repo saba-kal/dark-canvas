@@ -2,16 +2,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
+namespace DarkCanvas.ProceduralTerrain
 {
+    /// <summary>
+    /// Generates endless number of terrain chunks based on viewer's position.
+    /// </summary>
     public class EndlessTerrain : MonoBehaviour
     {
-        public const float SCALE = 1.5f;
-
         public static Vector2 ViewerPosition;
         public static float MaxViewDistance = 500;
-        public static List<TerrainChunk> TerrainChunksVisibleLastUpdate = new List<TerrainChunk>();
 
+        [SerializeField] private float _scale = 1.5f;
         [SerializeField] private Transform _viewer;
         [SerializeField] private float _viewerMoveThresholdForChunkUpdate = 25f;
         [SerializeField] private MapGenerator _mapGenerator;
@@ -20,24 +21,24 @@ namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
 
         private int _chunkSize;
         private int _chunksVisibleInViewDistance;
+        private List<TerrainChunk> _terrainChunksVisibleLastUpdate = new List<TerrainChunk>();
         private Dictionary<Vector2, TerrainChunk> _terrainChunkDictionary =
             new Dictionary<Vector2, TerrainChunk>();
         private float _sqrViewerMoveThresholdForChunkUpdate;
         private Vector2 _viewerPositionOld;
 
-        // Use this for initialization
         private void Start()
         {
             _sqrViewerMoveThresholdForChunkUpdate = Mathf.Pow(_viewerMoveThresholdForChunkUpdate, 2);
             MaxViewDistance = _detailLevels[_detailLevels.Length - 1].VisibileDistanceThreshold;
-            _chunkSize = MapGenerator.MAP_CHUNK_SIZE - 1;
+            _chunkSize = MapGenerator.MapChunkSize - 1;
             _chunksVisibleInViewDistance = Mathf.RoundToInt(MaxViewDistance / _chunkSize);
             UpdateVisibleChunks();
         }
 
         private void Update()
         {
-            ViewerPosition = new Vector2(_viewer.position.x, _viewer.position.z) / SCALE;
+            ViewerPosition = new Vector2(_viewer.position.x, _viewer.position.z) / _scale;
 
             if ((_viewerPositionOld - ViewerPosition).sqrMagnitude >
                 _sqrViewerMoveThresholdForChunkUpdate)
@@ -49,11 +50,7 @@ namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
 
         private void UpdateVisibleChunks()
         {
-            foreach (var terrainChunk in TerrainChunksVisibleLastUpdate)
-            {
-                terrainChunk.SetVisible(false);
-            }
-            TerrainChunksVisibleLastUpdate = new List<TerrainChunk>();
+            HideAllVisibleTerrainChunks();
 
             var currentChunkCoordX = Mathf.RoundToInt(ViewerPosition.x / _chunkSize);
             var currentChunkCoordY = Mathf.RoundToInt(ViewerPosition.y / _chunkSize);
@@ -66,22 +63,43 @@ namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
 
                     if (_terrainChunkDictionary.TryGetValue(viewedChunkCoord, out var terrainChunk))
                     {
-                        terrainChunk.Update();
+                        //Terrain chunk was previously visited.
+                        terrainChunk.UpdateChunk();
                     }
                     else
                     {
-                        _terrainChunkDictionary.Add(
-                            viewedChunkCoord,
-                            new TerrainChunk(
-                                viewedChunkCoord,
-                                _chunkSize,
-                                _detailLevels,
-                                transform,
-                                _mapGenerator,
-                                _mapMaterial));
+                        //Terrain chunk does not exist. Generate a new one.
+                        terrainChunk = BuildTerrainChunk(viewedChunkCoord);
+                        _terrainChunkDictionary.Add(viewedChunkCoord, terrainChunk);
                     }
+
+                    _terrainChunksVisibleLastUpdate.Add(terrainChunk);
                 }
             }
+        }
+
+        private void HideAllVisibleTerrainChunks()
+        {
+            foreach (var terrainChunk in _terrainChunksVisibleLastUpdate)
+            {
+                terrainChunk.SetVisible(false);
+            }
+            _terrainChunksVisibleLastUpdate = new List<TerrainChunk>();
+        }
+
+        private TerrainChunk BuildTerrainChunk(Vector2 coordinates)
+        {
+            return new TerrainChunk(
+                new TerrainChunkParams
+                {
+                    Coordinates = coordinates,
+                    Size = _chunkSize,
+                    DetailLevels = _detailLevels,
+                    Parent = transform,
+                    MapGenerator = _mapGenerator,
+                    Material = _mapMaterial,
+                    GlobalTerrainScale = _scale
+                });
         }
     }
 
@@ -90,5 +108,6 @@ namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
     {
         public int LevelOfDetail;
         public float VisibileDistanceThreshold;
+        public bool UseForCollider;
     }
 }

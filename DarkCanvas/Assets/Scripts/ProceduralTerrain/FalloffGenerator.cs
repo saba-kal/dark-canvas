@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DarkCanvas.Assets.Scripts.ProceduralTerrain
+namespace DarkCanvas.ProceduralTerrain
 {
     public static class FalloffGenerator
     {

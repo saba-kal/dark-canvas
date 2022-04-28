@@ -1,8 +1,8 @@
-using DarkCanvas.Assets.Scripts.ProceduralTerrain;
+using DarkCanvas.ProceduralTerrain;
 using UnityEditor;
 using UnityEngine;
 
-namespace DarkCanvas.Assets.Scripts.Editor
+namespace DarkCanvas.Editor
 {
     [CustomEditor(typeof(MapGenerator))]
     public class MapGeneratorEditor : UnityEditor.Editor
