@@ -11,11 +11,6 @@
         NoiseMap,
 
         /// <summary>
-        /// Show a color texture of our various terrain elevations.
-        /// </summary>
-        ColorMap,
-
-        /// <summary>
         /// Generate the mesh associated with our noise function.
         /// </summary>
         Mesh,

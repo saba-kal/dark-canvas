@@ -4,6 +4,13 @@ namespace DarkCanvas.ProceduralTerrain
 {
     public static class MeshGenerator
     {
+        public const int NUMBER_OF_SUPPORTED_LODS = 5;
+        public const int NUMBER_OF_SUPPORTED_CHUNK_SIZES = 9;
+        public const int NUMBER_OF_SUPPORTED_FLAT_SHADED_CHUNK_SIZES = 3;
+
+        public static int[] SupportedChunkSizes = { 48, 72, 96, 120, 144, 168, 192, 216, 240 };
+        public static int[] SupportedFlatShadedChunkSizes = { 48, 72, 96 };
+
         public static MeshData GenerateTerrainMesh(
             MeshGeneratorParams meshGeneratorParams)
         {

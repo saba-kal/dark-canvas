@@ -43,6 +43,16 @@ namespace DarkCanvas.ProceduralTerrain
         /// <summary>
         /// Scale of the entire endless terrain.
         /// </summary>
-        public float GlobalTerrainScale { get; init; }
+        public float UniformScale { get; init; }
+
+        /// <summary>
+        /// Index of the terrain level of detail to use for generating the collider.
+        /// </summary>
+        public int ColliderLODIndex { get; init; }
+
+        /// <summary>
+        /// Distance a player must be from a terrain chunk before a collision mesh is generated.
+        /// </summary>
+        public float ColliderGenerationDistanceThreshold { get; set; }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DarkCanvas.Data.ProceduralTerrain;
+using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using UnityEngine;
@@ -10,84 +11,58 @@ namespace DarkCanvas.ProceduralTerrain
     /// </summary>
     public class MapGenerator : MonoBehaviour
     {
-        /// <summary>
-        /// Map chunk size will contain 239 vertices on each side.
-        /// Was originally 241 vertices so that each side was 240 units long.
-        /// 240 is easy to work with when generating different levels of details of the mesh
-        /// because it is divisible by many numbers (2, 4, 6, 8, 10, and 12).
-        /// Was shrunk to 239 vertices so that we could smoothly stitch together
-        /// multiple map chunks by predicting the next maps normals.
-        /// </summary>
-        private const int SMOOTH_SHADING_MAP_CHUNK_SIZE = 239;
+        public int MapChunkSize => UseFlatShading ?
+            MeshGenerator.SupportedFlatShadedChunkSizes[_flatShadedChunkSizeIndex] - 1 :
+            MeshGenerator.SupportedChunkSizes[_chunkSizeIndex] - 1;
 
-        /// <summary>
-        /// Flat shading uses significantly more vertices.
-        /// Therefore, the chunk size must be smaller so that we don't run into
-        /// Unity's mesh size limit.
-        /// </summary>
-        private const int FLAT_SHADING_MAP_CHUNK_SIZE = 95;
-
-        public static int MapChunkSize
-        {
-            get
-            {
-                if (_instance == null)
-                {
-                    _instance = FindObjectOfType<MapGenerator>();
-                }
-
-                return _instance.UseFlatShading ?
-                    FLAT_SHADING_MAP_CHUNK_SIZE :
-                    SMOOTH_SHADING_MAP_CHUNK_SIZE;
-            }
-        }
-
-        public bool AutoUpdate { get => _autoUpdate; }
-        public bool UseFlatShading { get => _useFlatShading; }
+        public bool AutoUpdate => _autoUpdate;
+        public bool UseFlatShading => _terrainData.UseFlatShading;
+        public float UniformScale => _terrainData.UniformScale;
 
         [SerializeField] private bool _autoUpdate = false;
         [SerializeField] private MapDrawMode _drawMode;
-        [SerializeField] private NormalizeMode _normalizeMode;
-        [Range(0, 6)]
+        [Range(0, MeshGenerator.NUMBER_OF_SUPPORTED_CHUNK_SIZES - 1)]
+        [SerializeField] private int _chunkSizeIndex;
+        [Range(0, MeshGenerator.NUMBER_OF_SUPPORTED_FLAT_SHADED_CHUNK_SIZES - 1)]
+        [SerializeField] private int _flatShadedChunkSizeIndex;
+        [Range(0, MeshGenerator.NUMBER_OF_SUPPORTED_LODS - 1)]
         [SerializeField] private int _previewLevelOfDetail;
-        [SerializeField] private float _noiseScale;
-        [SerializeField] private int _octaves;
-        [Range(0, 1)]
-        [SerializeField] private float _persistance;
-        [SerializeField] private float _lacunarity;
-        [SerializeField] private int _seed;
-        [SerializeField] private Vector2 _offset;
-        [SerializeField] private bool _useFalloff;
-        [SerializeField] private float _meshHeightMultiplier;
-        [SerializeField] private bool _useFlatShading;
-        [SerializeField] private AnimationCurve _meshHeightCurve;
-        [SerializeField] private TerrainType[] _regions;
+
+        [SerializeField] private NoiseData _noiseData;
+        [SerializeField] private Data.ProceduralTerrain.TerrainData _terrainData;
+        [SerializeField] private TextureData _textureData;
+        [SerializeField] private Material _terrainMaterial;
+
         [SerializeField] private MapDisplay _mapDisplay;
 
         private float[,] _fallOffMap;
-        private ConcurrentQueue<MapThreadInfo<MapData>> _mapThreadInfoQueue =
-            new ConcurrentQueue<MapThreadInfo<MapData>>();
+        private ConcurrentQueue<MapThreadInfo<HeightMap>> _mapThreadInfoQueue =
+            new ConcurrentQueue<MapThreadInfo<HeightMap>>();
         private ConcurrentQueue<MapThreadInfo<MeshData>> _meshThreadInfoQueue =
             new ConcurrentQueue<MapThreadInfo<MeshData>>();
-        private static MapGenerator _instance;
+
+        private void Awake()
+        {
+            _textureData.ApplyToMaterial(_terrainMaterial);
+        }
 
         private void OnValidate()
         {
-            if (_lacunarity < 1)
+            if (_terrainData != null)
             {
-                _lacunarity = 1;
+                _terrainData.OnValuesUpdated -= OnValuesUpdated;
+                _terrainData.OnValuesUpdated += OnValuesUpdated;
             }
-            if (_octaves < 0)
+            if (_noiseData != null)
             {
-                _octaves = 0;
+                _noiseData.OnValuesUpdated -= OnValuesUpdated;
+                _noiseData.OnValuesUpdated += OnValuesUpdated;
             }
-
-            _fallOffMap = FalloffGenerator.GenerateFalloffMap(MapChunkSize);
-        }
-
-        private void Start()
-        {
-            _fallOffMap = FalloffGenerator.GenerateFalloffMap(MapChunkSize);
+            if (_textureData != null)
+            {
+                _textureData.OnValuesUpdated -= OnTextureValuesUpdated;
+                _textureData.OnValuesUpdated += OnTextureValuesUpdated;
+            }
         }
 
         private void Update()
@@ -120,29 +95,28 @@ namespace DarkCanvas.ProceduralTerrain
         /// </summary>
         public void DrawMapInEditor()
         {
-            var mapData = GenerateMapData(Vector2.zero);
+            _textureData.UpdateMeshHeights(
+                _terrainMaterial,
+                _terrainData.MinHeight,
+                _terrainData.MaxHeight);
 
+            var heightMap = GenerateMapData(Vector2.zero);
             switch (_drawMode)
             {
                 case MapDrawMode.NoiseMap:
-                    _mapDisplay.DrawTexture(TextureGenerator.TextureFromHeightMap(mapData.HeightMap));
-                    break;
-                case MapDrawMode.ColorMap:
-                    _mapDisplay.DrawTexture(
-                        TextureGenerator.TextureFromColourMap(mapData.ColorMap, MapChunkSize, MapChunkSize));
+                    _mapDisplay.DrawTexture(TextureGenerator.TextureFromHeightMap(heightMap.Values));
                     break;
                 case MapDrawMode.Mesh:
                     _mapDisplay.DrawMesh(
                         MeshGenerator.GenerateTerrainMesh(
                             new MeshGeneratorParams
                             {
-                                HeightMap = mapData.HeightMap,
-                                HeightMultiplier = _meshHeightMultiplier,
-                                HeightCurve = _meshHeightCurve,
+                                HeightMap = heightMap.Values,
+                                HeightMultiplier = _terrainData.MeshHeightMultiplier,
+                                HeightCurve = _terrainData.MeshHeightCurve,
                                 LevelOfDetail = _previewLevelOfDetail,
-                                UseFlatShading = _useFlatShading
-                            }),
-                        TextureGenerator.TextureFromColourMap(mapData.ColorMap, MapChunkSize, MapChunkSize));
+                                UseFlatShading = _terrainData.UseFlatShading
+                            }));
                     break;
                 case MapDrawMode.FalloffMap:
                     _mapDisplay.DrawTexture(TextureGenerator.TextureFromHeightMap(
@@ -156,7 +130,7 @@ namespace DarkCanvas.ProceduralTerrain
         /// </summary>
         /// <param name="center">Center of the terrain chunk this map will represent.</param>
         /// <param name="callback">Callback function for when map data is returned.</param>
-        public void RequestMapData(Vector2 center, Action<MapData> callback)
+        public void RequestMapData(Vector2 center, Action<HeightMap> callback)
         {
             ThreadStart threadStart = delegate
             {
@@ -169,82 +143,92 @@ namespace DarkCanvas.ProceduralTerrain
         /// <summary>
         /// Makes an asynchronous request for new mesh data.
         /// </summary>
-        /// <param name="mapData">Holds the height and color maps of the mesh.</param>
+        /// <param name="heightMap">Holds the height and color maps of the mesh.</param>
         /// <param name="levelOfDetail">Complexity level of the mesh.</param>
         /// <param name="callback">Callback function for when mesh data is returned.</param>
-        public void RequestMeshData(MapData mapData, int levelOfDetail, Action<MeshData> callback)
+        public void RequestMeshData(HeightMap heightMap, int levelOfDetail, Action<MeshData> callback)
         {
             ThreadStart threadStart = delegate
             {
-                MeshDataThread(mapData, levelOfDetail, callback);
+                MeshDataThread(heightMap, levelOfDetail, callback);
             };
 
             new Thread(threadStart).Start();
         }
 
-        private void MapDataThread(Vector2 center, Action<MapData> callback)
+        private void MapDataThread(Vector2 center, Action<HeightMap> callback)
         {
             var mapData = GenerateMapData(center);
-            _mapThreadInfoQueue.Enqueue(new MapThreadInfo<MapData>(callback, mapData));
+            _mapThreadInfoQueue.Enqueue(new MapThreadInfo<HeightMap>(callback, mapData));
         }
 
-        private void MeshDataThread(MapData mapData, int levelOfDetail, Action<MeshData> callback)
+        private void MeshDataThread(HeightMap mapData, int levelOfDetail, Action<MeshData> callback)
         {
             var meshData = MeshGenerator.GenerateTerrainMesh(
                 new MeshGeneratorParams
                 {
-                    HeightMap = mapData.HeightMap,
-                    HeightMultiplier = _meshHeightMultiplier,
-                    HeightCurve = _meshHeightCurve,
+                    HeightMap = mapData.Values,
+                    HeightMultiplier = _terrainData.MeshHeightMultiplier,
+                    HeightCurve = _terrainData.MeshHeightCurve,
                     LevelOfDetail = levelOfDetail,
-                    UseFlatShading = _useFlatShading
+                    UseFlatShading = _terrainData.UseFlatShading
                 });
             _meshThreadInfoQueue.Enqueue(new MapThreadInfo<MeshData>(callback, meshData));
         }
 
-        private MapData GenerateMapData(Vector2 center)
+        private HeightMap GenerateMapData(Vector2 center)
         {
+            //Extend the size of chunks beyond the edges by 1 vertex so that
+            //we can smoothly shade across multiple terrain chunks.
+            var bleededMapChinkSize = MapChunkSize + 2;
+
             var noiseMap = Noise.GenerateMap(
-                MapChunkSize + 2,
-                MapChunkSize + 2,
-                _seed,
-                _noiseScale,
-                _octaves,
-                _persistance,
-                _lacunarity,
-                center + _offset,
-                _normalizeMode);
+                bleededMapChinkSize,
+                bleededMapChinkSize,
+                _noiseData.Seed,
+                _noiseData.NoiseScale,
+                _noiseData.Octaves,
+                _noiseData.Persistence,
+                _noiseData.Lacunarity,
+                center + _noiseData.Offset,
+                _noiseData.NormalizeMode);
 
-            var colorMap = new Color[MapChunkSize * MapChunkSize];
-            for (var y = 0; y < MapChunkSize; y++)
+            if (_terrainData.UseFalloff)
             {
-                for (var x = 0; x < MapChunkSize; x++)
-                {
-                    if (_useFalloff)
-                    {
-                        noiseMap[x, y] = Mathf.Clamp01(noiseMap[x, y] - _fallOffMap[x, y]);
-                    }
+                _fallOffMap ??= FalloffGenerator.GenerateFalloffMap(bleededMapChinkSize);
 
-                    var currentHeight = noiseMap[x, y];
-                    for (var i = 0; i < _regions.Length; i++)
+                for (var y = 0; y < bleededMapChinkSize; y++)
+                {
+                    for (var x = 0; x < bleededMapChinkSize; x++)
                     {
-                        if (currentHeight >= _regions[i].Height)
+                        if (_terrainData.UseFalloff)
                         {
-                            colorMap[y * MapChunkSize + x] = _regions[i].Color;
-                        }
-                        else
-                        {
-                            break;
+                            noiseMap[x, y] = Mathf.Clamp01(noiseMap[x, y] - _fallOffMap[x, y]);
                         }
                     }
                 }
             }
 
-            return new MapData
+            return new HeightMap
             {
-                HeightMap = noiseMap,
-                ColorMap = colorMap
+                Values = noiseMap
             };
+        }
+
+        private void OnValuesUpdated()
+        {
+            if (!Application.isPlaying)
+            {
+                DrawMapInEditor();
+            }
+        }
+
+        private void OnTextureValuesUpdated()
+        {
+            if (!Application.isPlaying)
+            {
+                _textureData.ApplyToMaterial(_terrainMaterial);
+            }
         }
     }
 }

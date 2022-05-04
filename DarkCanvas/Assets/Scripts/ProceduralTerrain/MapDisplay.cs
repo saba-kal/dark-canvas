@@ -7,6 +7,7 @@ namespace DarkCanvas.ProceduralTerrain
         [SerializeField] private Renderer _textureRenderer;
         [SerializeField] private MeshFilter _meshFilter;
         [SerializeField] private MeshRenderer _meshRenderer;
+        [SerializeField] private MapGenerator _mapGenerator;
 
         public void DrawTexture(Texture2D texture)
         {
@@ -14,10 +15,10 @@ namespace DarkCanvas.ProceduralTerrain
             _textureRenderer.transform.localScale = new Vector3(texture.width, 1, texture.height);
         }
 
-        public void DrawMesh(MeshData meshData, Texture2D texture)
+        public void DrawMesh(MeshData meshData)
         {
             _meshFilter.sharedMesh = meshData.CreateMesh();
-            _meshRenderer.sharedMaterial.mainTexture = texture;
+            _meshFilter.transform.localScale = Vector3.one * _mapGenerator.UniformScale;
         }
     }
 }

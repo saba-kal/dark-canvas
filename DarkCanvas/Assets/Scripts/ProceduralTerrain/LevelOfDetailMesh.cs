@@ -5,25 +5,23 @@ namespace DarkCanvas.ProceduralTerrain
 {
     public class LevelOfDetailMesh
     {
+        public event Action UpdateCallback;
         public Mesh Mesh { get; private set; }
         public bool HasRequestedMesh { get; private set; }
         public bool HasMesh { get; private set; }
 
         private readonly int _levelOfDetail;
         private readonly MapGenerator _mapGenerator;
-        private readonly Action _updateCallback;
 
         public LevelOfDetailMesh(
             int levelOfDetail,
-            MapGenerator mapGenerator,
-            Action updateCallback)
+            MapGenerator mapGenerator)
         {
             _levelOfDetail = levelOfDetail;
             _mapGenerator = mapGenerator;
-            _updateCallback = updateCallback;
         }
 
-        public void RequestMesh(MapData mapData)
+        public void RequestMesh(HeightMap mapData)
         {
             HasRequestedMesh = true;
             _mapGenerator.RequestMeshData(mapData, _levelOfDetail, OnMeshDatReceived);
@@ -33,7 +31,7 @@ namespace DarkCanvas.ProceduralTerrain
         {
             Mesh = meshData.CreateMesh();
             HasMesh = true;
-            _updateCallback();
+            UpdateCallback();
         }
     }
 }
