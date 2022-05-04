@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using DarkCanvas.Data.ProceduralTerrain;
+using System;
+using UnityEngine;
 
 namespace DarkCanvas.ProceduralTerrain
 {
@@ -8,10 +10,12 @@ namespace DarkCanvas.ProceduralTerrain
     /// </summary>
     public class TerrainChunk
     {
+        public event Action<TerrainChunk, bool> OnVisibilityChanged;
+        public Vector2 Coordinates { get; private set; }
+
         private readonly GameObject _meshObject;
-        private readonly Vector2 _position;
+        private readonly Vector2 _sampleCenter;
         private readonly Bounds _bounds;
-        private readonly MapGenerator _mapGenerator;
         private readonly MeshRenderer _meshRenderer;
         private readonly MeshFilter _meshFilter;
         private readonly MeshCollider _meshCollider;
@@ -19,25 +23,39 @@ namespace DarkCanvas.ProceduralTerrain
         private readonly LevelOfDetailMesh[] _levelOfDetailMeshes;
         private readonly int _colliderLODIndex;
         private readonly float _colliderGenerationDistanceThreshold;
+        private readonly MeshSettings _meshSettings;
+        private readonly HeightMapSettings _heightMapSettings;
+        private readonly Transform _viewer;
+        private readonly float _maxViewDistance;
 
-        private HeightMap _mapData;
-        private bool _mapDataRecieved;
+        private HeightMap _heightMap;
+        private bool _heightMapRecieved;
         private int _previousLevelOfDetailIndex = -1;
         private bool _hasSetCollider = false;
 
+        private Vector2 _viewerPosition => new Vector2(_viewer.position.x, _viewer.position.z);
+
         public TerrainChunk(TerrainChunkParams terrainChunkParams)
         {
-            _position = terrainChunkParams.Coordinates * terrainChunkParams.Size;
-            _bounds = new Bounds(_position, Vector2.one * terrainChunkParams.Size);
+            Coordinates = terrainChunkParams.Coordinates;
+
+            var meshWorldSize = terrainChunkParams.MeshSettings.MeshWorldSize;
+            var meshScale = terrainChunkParams.MeshSettings.MeshScale;
+
+            _sampleCenter = Coordinates * meshWorldSize / meshScale;
+            var position = Coordinates * meshWorldSize;
+
+            _bounds = new Bounds(position, Vector2.one * meshWorldSize);
             _detailLevels = terrainChunkParams.DetailLevels;
-            _mapGenerator = terrainChunkParams.MapGenerator;
             _colliderLODIndex = terrainChunkParams.ColliderLODIndex;
             _colliderGenerationDistanceThreshold = terrainChunkParams.ColliderGenerationDistanceThreshold;
+            _viewer = terrainChunkParams.Viewer;
+            _meshSettings = terrainChunkParams.MeshSettings;
+            _heightMapSettings = terrainChunkParams.HeightMapSettings;
 
             _meshObject = new GameObject("Terrain Chunk");
-            _meshObject.transform.position = new Vector3(_position.x, 0, _position.y) * terrainChunkParams.UniformScale;
+            _meshObject.transform.position = new Vector3(position.x, 0, position.y);
             _meshObject.transform.parent = terrainChunkParams.Parent;
-            _meshObject.transform.localScale = Vector3.one * terrainChunkParams.UniformScale;
 
             _meshRenderer = _meshObject.AddComponent<MeshRenderer>();
             _meshRenderer.material = terrainChunkParams.Material;
@@ -51,7 +69,7 @@ namespace DarkCanvas.ProceduralTerrain
             _levelOfDetailMeshes = new LevelOfDetailMesh[_detailLevels.Length];
             for (int i = 0; i < _detailLevels.Length; i++)
             {
-                _levelOfDetailMeshes[i] = new LevelOfDetailMesh(_detailLevels[i].LevelOfDetail, _mapGenerator);
+                _levelOfDetailMeshes[i] = new LevelOfDetailMesh(_detailLevels[i].LevelOfDetail);
                 _levelOfDetailMeshes[i].UpdateCallback += UpdateChunk;
                 if (i == _colliderLODIndex)
                 {
@@ -59,7 +77,15 @@ namespace DarkCanvas.ProceduralTerrain
                 }
             }
 
-            _mapGenerator.RequestMapData(_position, OnMapDataReceived);
+            _maxViewDistance = _detailLevels[_detailLevels.Length - 1].VisibleDistanceThreshold;
+        }
+
+        /// <summary>
+        /// Gets data dependencies for this terrain chunk that must be retrieved asynchronously.
+        /// </summary>
+        public void Load()
+        {
+            ThreadedDataRequester.RequestData(GenerateHeightMap, OnHeightMapReceived);
         }
 
         /// <summary>
@@ -68,21 +94,25 @@ namespace DarkCanvas.ProceduralTerrain
         /// </summary>
         public void UpdateChunk()
         {
-            if (!_mapDataRecieved)
+            if (!_heightMapRecieved)
             {
                 return;
             }
 
-            var viewerDstFromNearestEdge = Mathf.Sqrt(_bounds.SqrDistance(EndlessTerrain.ViewerPosition));
-            var visible = viewerDstFromNearestEdge <= EndlessTerrain.MaxViewDistance;
-            SetVisible(visible);
-            if (!visible)
+            var viewerDstFromNearestEdge = Mathf.Sqrt(_bounds.SqrDistance(_viewerPosition));
+            var wasVisible = IsVisible();
+            var visible = viewerDstFromNearestEdge <= _maxViewDistance;
+            if (visible)
             {
-                return;
+                var levelOfDetailIndex = GetLevelOfDetailIndex(viewerDstFromNearestEdge);
+                UpdateMesh(levelOfDetailIndex);
             }
 
-            var levelOfDetailIndex = GetLevelOfDetailIndex(viewerDstFromNearestEdge);
-            UpdateMesh(levelOfDetailIndex);
+            if (wasVisible != visible)
+            {
+                SetVisible(visible);
+                OnVisibilityChanged?.Invoke(this, visible);
+            }
         }
 
         /// <summary>
@@ -120,11 +150,11 @@ namespace DarkCanvas.ProceduralTerrain
             }
 
             var collisionLevelOfDetailMesh = _levelOfDetailMeshes[_colliderLODIndex];
-            var sqrDistanceFromViewerToEdge = _bounds.SqrDistance(EndlessTerrain.ViewerPosition);
+            var sqrDistanceFromViewerToEdge = _bounds.SqrDistance(_viewerPosition);
             if (sqrDistanceFromViewerToEdge < _detailLevels[_colliderLODIndex].SqrVisibleDstThreshold &&
                 !collisionLevelOfDetailMesh.HasRequestedMesh)
             {
-                collisionLevelOfDetailMesh.RequestMesh(_mapData);
+                collisionLevelOfDetailMesh.RequestMesh(_heightMap, _meshSettings);
             }
 
             if (sqrDistanceFromViewerToEdge < _colliderGenerationDistanceThreshold * _colliderGenerationDistanceThreshold &&
@@ -169,14 +199,23 @@ namespace DarkCanvas.ProceduralTerrain
             }
             else if (!levelOfDetailMesh.HasRequestedMesh)
             {
-                levelOfDetailMesh.RequestMesh(_mapData);
+                levelOfDetailMesh.RequestMesh(_heightMap, _meshSettings);
             }
         }
 
-        private void OnMapDataReceived(HeightMap mapData)
+        private HeightMap GenerateHeightMap()
         {
-            _mapData = mapData;
-            _mapDataRecieved = true;
+            return HeightMapGenerator.GenerateHeightMap(
+                _meshSettings.NumberOfVerticesPerLine,
+                _meshSettings.NumberOfVerticesPerLine,
+                _heightMapSettings,
+                _sampleCenter);
+        }
+
+        private void OnHeightMapReceived(object heightMap)
+        {
+            _heightMap = (HeightMap)heightMap;
+            _heightMapRecieved = true;
 
             UpdateChunk();
         }

@@ -1,23 +1,29 @@
-﻿using UnityEngine;
+﻿using DarkCanvas.Data.ProceduralTerrain;
+using UnityEngine;
 
 namespace DarkCanvas.ProceduralTerrain
 {
+    /// <summary>
+    /// Class for generating a terrain mesh.
+    /// </summary>
     public static class MeshGenerator
     {
-        public const int NUMBER_OF_SUPPORTED_LODS = 5;
-        public const int NUMBER_OF_SUPPORTED_CHUNK_SIZES = 9;
-        public const int NUMBER_OF_SUPPORTED_FLAT_SHADED_CHUNK_SIZES = 3;
-
-        public static int[] SupportedChunkSizes = { 48, 72, 96, 120, 144, 168, 192, 216, 240 };
-        public static int[] SupportedFlatShadedChunkSizes = { 48, 72, 96 };
-
+        /// <summary>
+        /// Generates a terrain mesh.
+        /// </summary>
+        /// <param name="heightMap">2D array of heights for each mesh vertex.</param>
+        /// <param name="settings">Display settings for the mesh.</param>
+        /// <param name="levelOfDetail">
+        /// Mesh level of detail. Highest detail level is 0.
+        /// Subsequent detail levels (1, 2, 3, etc.) simplify the mesh.
+        /// </param>
+        /// <returns>Object holding all data needed to create the mesh in Unity.</returns>
         public static MeshData GenerateTerrainMesh(
-            MeshGeneratorParams meshGeneratorParams)
+            float[,] heightMap, MeshSettings settings, int levelOfDetail)
         {
-            var threadSafeHeightCurve = new AnimationCurve(meshGeneratorParams.HeightCurve.keys);
-            var meshSimplificationIncrement = meshGeneratorParams.LevelOfDetail <= 0 ? 1 : meshGeneratorParams.LevelOfDetail * 2;
+            var meshSimplificationIncrement = levelOfDetail <= 0 ? 1 : levelOfDetail * 2;
 
-            var borderedSize = meshGeneratorParams.HeightMap.GetLength(0);
+            var borderedSize = heightMap.GetLength(0);
             var meshSize = borderedSize - 2 * meshSimplificationIncrement;
             var meshSizeUnsimplified = borderedSize - 2;
 
@@ -26,7 +32,7 @@ namespace DarkCanvas.ProceduralTerrain
 
             var verticiesPerLine = (meshSize - 1) / meshSimplificationIncrement + 1;
 
-            var meshData = new MeshData(verticiesPerLine, meshGeneratorParams.UseFlatShading);
+            var meshData = new MeshData(verticiesPerLine, settings.UseFlatShading);
 
             var vertexIndicesMap = new int[borderedSize, borderedSize];
             var meshVertexIndex = 0;
@@ -59,13 +65,10 @@ namespace DarkCanvas.ProceduralTerrain
                     var percent = new Vector2(
                         (x - meshSimplificationIncrement) / (float)meshSize,
                         (y - meshSimplificationIncrement) / (float)meshSize);
-                    var height =
-                        threadSafeHeightCurve.Evaluate(meshGeneratorParams.HeightMap[x, y]) *
-                        meshGeneratorParams.HeightMultiplier;
                     var vertexPosition = new Vector3(
-                        topLeftX + percent.x * meshSizeUnsimplified,
-                        height,
-                        topLeftZ - percent.y * meshSizeUnsimplified);
+                        (topLeftX + percent.x * meshSizeUnsimplified) * settings.MeshScale,
+                        heightMap[x, y],
+                        (topLeftZ - percent.y * meshSizeUnsimplified) * settings.MeshScale);
 
                     meshData.AddVertex(vertexPosition, percent, vertexIndex);
 

@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using DarkCanvas.Data.ProceduralTerrain;
+using UnityEngine;
 
 namespace DarkCanvas.ProceduralTerrain
 {
@@ -13,11 +14,6 @@ namespace DarkCanvas.ProceduralTerrain
         /// chunk A would have coordinates (0,1).
         /// </summary>
         public Vector2 Coordinates { get; init; }
-
-        /// <summary>
-        /// Size of the terrain chunk.
-        /// </summary>
-        public int Size { get; init; }
 
         /// <summary>
         /// Array containing information for what mesh level of detail to use at various 
@@ -36,16 +32,6 @@ namespace DarkCanvas.ProceduralTerrain
         public Material Material { get; init; }
 
         /// <summary>
-        /// Class for generating a single chunk of terrain.
-        /// </summary>
-        public MapGenerator MapGenerator { get; init; }
-
-        /// <summary>
-        /// Scale of the entire endless terrain.
-        /// </summary>
-        public float UniformScale { get; init; }
-
-        /// <summary>
         /// Index of the terrain level of detail to use for generating the collider.
         /// </summary>
         public int ColliderLODIndex { get; init; }
@@ -53,6 +39,21 @@ namespace DarkCanvas.ProceduralTerrain
         /// <summary>
         /// Distance a player must be from a terrain chunk before a collision mesh is generated.
         /// </summary>
-        public float ColliderGenerationDistanceThreshold { get; set; }
+        public float ColliderGenerationDistanceThreshold { get; init; }
+
+        /// <summary>
+        /// Location of the terrain viewer. Used to display various terrain mesh levels of details.
+        /// </summary>
+        public Transform Viewer { get; init; }
+
+        /// <summary>
+        /// Holds settings for generating a height map.
+        /// </summary>
+        public HeightMapSettings HeightMapSettings { get; init; }
+
+        /// <summary>
+        /// Holds settings for generating a mesh.
+        /// </summary>
+        public MeshSettings MeshSettings { get; init; }
     }
 }

@@ -267,7 +267,7 @@ Material:
     - _ZTestTransparent: 4
     - _ZWrite: 1
     - _baseColorCount: 0
-    - _maxHeight: 14.775946
+    - _maxHeight: 40
     - _minHeight: 0
     - _textureCount: 3
     m_Colors:

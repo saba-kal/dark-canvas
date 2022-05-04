@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DarkCanvas.Data.ProceduralTerrain;
+using System;
 using UnityEngine;
 
 namespace DarkCanvas.ProceduralTerrain
@@ -12,7 +13,7 @@ namespace DarkCanvas.ProceduralTerrain
         /// <summary>
         /// The level of detail.
         /// </summary>
-        [Range(0, MeshGenerator.NUMBER_OF_SUPPORTED_LODS - 1)]
+        [Range(0, MeshSettings.NUMBER_OF_SUPPORTED_LODS - 1)]
         public int LevelOfDetail;
 
         /// <summary>
