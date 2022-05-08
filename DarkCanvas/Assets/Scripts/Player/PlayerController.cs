@@ -1,4 +1,5 @@
 ﻿using DarkCanvas.Input;
+using DarkCanvas.ProceduralTerrain;
 using UnityEngine;
 
 namespace DarkCanvas.Player
@@ -12,6 +13,8 @@ namespace DarkCanvas.Player
         [SerializeField] private float _playerSpeed = 2.0f;
         [SerializeField] private float _jumpHeight = 1.0f;
         [SerializeField] private float _gravityValue = -9.81f;
+        [SerializeField] private bool _allowFlight = false;
+        [SerializeField] private MapPreview _mapPreview;
 
         private CharacterController _characterController;
         private InputManager _inputManager;
@@ -49,10 +52,29 @@ namespace DarkCanvas.Player
             if (_inputManager.PlayerJumped() && _playerIsGrounded)
             {
                 _playerVelocity.y += Mathf.Sqrt(_jumpHeight * -3.0f * _gravityValue);
+                _mapPreview?.Test();
             }
 
-            //Apply gravity.
-            _playerVelocity.y += _gravityValue * Time.deltaTime;
+            if (_allowFlight)
+            {
+                if (_inputManager.PlayerFlewUp())
+                {
+                    _playerVelocity.y += Time.deltaTime * _playerSpeed;
+                }
+                else if (_inputManager.PlayerFlewDown())
+                {
+                    _playerVelocity.y -= Time.deltaTime * _playerSpeed;
+                }
+                else
+                {
+                    _playerVelocity.y = 0;
+                }
+            }
+            else
+            {
+                //Apply gravity.
+                _playerVelocity.y += _gravityValue * Time.deltaTime;
+            }
 
             _characterController.Move(_playerVelocity * Time.deltaTime);
         }

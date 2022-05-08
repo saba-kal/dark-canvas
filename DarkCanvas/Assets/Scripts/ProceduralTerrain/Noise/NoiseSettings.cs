@@ -42,7 +42,7 @@ namespace DarkCanvas.ProceduralTerrain
         /// <summary>
         /// The location offset of the noise.
         /// </summary>
-        public Vector2 Offset;
+        public Vector3 Offset;
 
         /// <summary>
         /// Validates each property in this class.

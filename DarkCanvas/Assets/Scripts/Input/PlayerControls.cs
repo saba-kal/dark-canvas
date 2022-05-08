@@ -55,6 +55,24 @@ namespace DarkCanvas.Input
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""FlyUp"",
+                    ""type"": ""Button"",
+                    ""id"": ""9dd08ef7-645f-4e7c-9a8e-e35b2f07e72f"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": ""Press(behavior=2)"",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""FlyDown"",
+                    ""type"": ""Button"",
+                    ""id"": ""5a9fe8e5-f0d8-4bb9-8820-a164444e99c9"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": ""Press(behavior=2)"",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -134,6 +152,28 @@ namespace DarkCanvas.Input
                     ""action"": ""Look"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""175eace0-94d4-47a8-be29-fd352dfb645c"",
+                    ""path"": ""<Keyboard>/space"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""FlyUp"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""0c34791d-2ea5-4998-90a6-472601f6edb0"",
+                    ""path"": ""<Keyboard>/shift"",
+                    ""interactions"": ""Hold"",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""FlyDown"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -145,6 +185,8 @@ namespace DarkCanvas.Input
             m_Player_Movement = m_Player.FindAction("Movement", throwIfNotFound: true);
             m_Player_Jump = m_Player.FindAction("Jump", throwIfNotFound: true);
             m_Player_Look = m_Player.FindAction("Look", throwIfNotFound: true);
+            m_Player_FlyUp = m_Player.FindAction("FlyUp", throwIfNotFound: true);
+            m_Player_FlyDown = m_Player.FindAction("FlyDown", throwIfNotFound: true);
         }
 
         public void Dispose()
@@ -207,6 +249,8 @@ namespace DarkCanvas.Input
         private readonly InputAction m_Player_Movement;
         private readonly InputAction m_Player_Jump;
         private readonly InputAction m_Player_Look;
+        private readonly InputAction m_Player_FlyUp;
+        private readonly InputAction m_Player_FlyDown;
         public struct PlayerActions
         {
             private @PlayerControls m_Wrapper;
@@ -214,6 +258,8 @@ namespace DarkCanvas.Input
             public InputAction @Movement => m_Wrapper.m_Player_Movement;
             public InputAction @Jump => m_Wrapper.m_Player_Jump;
             public InputAction @Look => m_Wrapper.m_Player_Look;
+            public InputAction @FlyUp => m_Wrapper.m_Player_FlyUp;
+            public InputAction @FlyDown => m_Wrapper.m_Player_FlyDown;
             public InputActionMap Get() { return m_Wrapper.m_Player; }
             public void Enable() { Get().Enable(); }
             public void Disable() { Get().Disable(); }
@@ -232,6 +278,12 @@ namespace DarkCanvas.Input
                     @Look.started -= m_Wrapper.m_PlayerActionsCallbackInterface.OnLook;
                     @Look.performed -= m_Wrapper.m_PlayerActionsCallbackInterface.OnLook;
                     @Look.canceled -= m_Wrapper.m_PlayerActionsCallbackInterface.OnLook;
+                    @FlyUp.started -= m_Wrapper.m_PlayerActionsCallbackInterface.OnFlyUp;
+                    @FlyUp.performed -= m_Wrapper.m_PlayerActionsCallbackInterface.OnFlyUp;
+                    @FlyUp.canceled -= m_Wrapper.m_PlayerActionsCallbackInterface.OnFlyUp;
+                    @FlyDown.started -= m_Wrapper.m_PlayerActionsCallbackInterface.OnFlyDown;
+                    @FlyDown.performed -= m_Wrapper.m_PlayerActionsCallbackInterface.OnFlyDown;
+                    @FlyDown.canceled -= m_Wrapper.m_PlayerActionsCallbackInterface.OnFlyDown;
                 }
                 m_Wrapper.m_PlayerActionsCallbackInterface = instance;
                 if (instance != null)
@@ -245,6 +297,12 @@ namespace DarkCanvas.Input
                     @Look.started += instance.OnLook;
                     @Look.performed += instance.OnLook;
                     @Look.canceled += instance.OnLook;
+                    @FlyUp.started += instance.OnFlyUp;
+                    @FlyUp.performed += instance.OnFlyUp;
+                    @FlyUp.canceled += instance.OnFlyUp;
+                    @FlyDown.started += instance.OnFlyDown;
+                    @FlyDown.performed += instance.OnFlyDown;
+                    @FlyDown.canceled += instance.OnFlyDown;
                 }
             }
         }
@@ -254,6 +312,8 @@ namespace DarkCanvas.Input
             void OnMovement(InputAction.CallbackContext context);
             void OnJump(InputAction.CallbackContext context);
             void OnLook(InputAction.CallbackContext context);
+            void OnFlyUp(InputAction.CallbackContext context);
+            void OnFlyDown(InputAction.CallbackContext context);
         }
     }
 }

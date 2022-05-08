@@ -13,7 +13,7 @@ namespace DarkCanvas.ProceduralTerrain
         /// if terrain chunk A is directly to the right of chunk B with coordinates (0,0), 
         /// chunk A would have coordinates (0,1).
         /// </summary>
-        public Vector2 Coordinates { get; init; }
+        public Vector3 Coordinates { get; init; }
 
         /// <summary>
         /// Array containing information for what mesh level of detail to use at various 

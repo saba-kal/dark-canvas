@@ -51,5 +51,21 @@ namespace DarkCanvas.Input
         {
             return _playerControls.Player.Jump.triggered;
         }
+
+        /// <summary>
+        /// Tells whether or not the player pressed the fly up button.
+        /// </summary>
+        public bool PlayerFlewUp()
+        {
+            return _playerControls.Player.FlyUp.ReadValue<float>() > 0.5f;
+        }
+
+        /// <summary>
+        /// Tells whether or not the player pressed the fly down button.
+        /// </summary>
+        public bool PlayerFlewDown()
+        {
+            return _playerControls.Player.FlyDown.ReadValue<float>() > 0.5f;
+        }
     }
 }

@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cb8b3795ec8f97f4e9ab6e5ed8732c98, type: 3}
-  m_Name: DefaultHeightMapSettings
+  m_Name: DefaultHeightMapSettings 1
   m_EditorClassIdentifier: 
   _autoUpdate: 1
   _noiseSettings:
@@ -20,7 +20,7 @@ MonoBehaviour:
     Persistence: 0.599
     Lacunarity: 1.83
     Seed: 0
-    Offset: {x: 0, y: 0, z: 0}
+    Offset: {x: 16, y: 0, z: 0}
   _useFalloff: 0
   _heightMultiplier: 40
   _heightCurve:

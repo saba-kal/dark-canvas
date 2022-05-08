@@ -79,6 +79,23 @@ namespace DarkCanvas.ProceduralTerrain
         }
 
         /// <summary>
+        /// Stores the mesh vertices.
+        /// </summary>=
+        public void SetVertices(Vector3[] vertices)
+        {
+            _vertices = vertices;
+            _uvs = new Vector2[_vertices.Length];
+        }
+
+        /// <summary>
+        /// Stores the mesh triangles.
+        /// </summary>
+        public void SetTriangles(int[] triangles)
+        {
+            _triangles = triangles;
+        }
+
+        /// <summary>
         /// Creates a Unity mesh object associated with this mesh data.
         /// </summary>
         public Mesh CreateMesh()

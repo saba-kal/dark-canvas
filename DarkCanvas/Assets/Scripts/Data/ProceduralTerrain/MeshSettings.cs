@@ -9,11 +9,14 @@ namespace DarkCanvas.Data.ProceduralTerrain
     public class MeshSettings : UpdatableData
     {
         [SerializeField] private bool _useFlatShading;
+        [SerializeField] private bool _useVoxels;
         [SerializeField] private float _meshScale = 1.5f;
         [Range(0, NUMBER_OF_SUPPORTED_CHUNK_SIZES - 1)]
         [SerializeField] private int _chunkSizeIndex;
         [Range(0, NUMBER_OF_SUPPORTED_FLAT_SHADED_CHUNK_SIZES - 1)]
         [SerializeField] private int _flatShadedChunkSizeIndex;
+        [Range(0, 40)]
+        [SerializeField] private int _chunkSize3D;
 
         /// <summary>
         /// Total number of mesh details levels that are supported.
@@ -47,9 +50,19 @@ namespace DarkCanvas.Data.ProceduralTerrain
         public static int[] SupportedChunkSizes = { 48, 72, 96, 120, 144, 168, 192, 216, 240 };
 
         /// <summary>
+        /// Voxel chunk size is 16x16x16 because it makes level of details calculation easier.
+        /// </summary>
+        public const int VOXEL_CHUNK_SIZE = 16;
+
+        /// <summary>
         /// Whether or not the terrain is shaded flat or smooth.
         /// </summary>
         public bool UseFlatShading => _useFlatShading;
+
+        /// <summary>
+        /// Generate mesh using 3D noise instead of a simple height map.
+        /// </summary>
+        public bool UseVoxels => _useVoxels;
 
         /// <summary>
         /// Scale multiplier for each terrain chunk game object.
@@ -79,6 +92,26 @@ namespace DarkCanvas.Data.ProceduralTerrain
         /// Basically, the generated meshes overlap each other by 1 vertex so that we can smoothly
         /// stitch them together. Without this, there would be noticeable seams between terrain chunks.
         /// </summary>
-        public float MeshWorldSize => (NumberOfVerticesPerLine - 3) * _meshScale;
+        public float MeshWorldSize
+        {
+            get
+            {
+                if (_useVoxels)
+                {
+                    return (VOXEL_CHUNK_SIZE - 1);
+                }
+                else
+                {
+                    return (NumberOfVerticesPerLine - 3) * _meshScale;
+                }
+            }
+        }
+
+        /// <summary>
+        /// If using 3D noise to generate terrain, there is a separate chunk size.
+        /// The reason is because adding a third dimension makes the noise generation algorithm
+        /// orders of magnitude slower. Therefore, we need to limit the size when in 3D mode.
+        /// </summary>
+        public int ChunkSize3D => _chunkSize3D;
     }
 }

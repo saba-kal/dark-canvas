@@ -18,6 +18,16 @@
         /// <summary>
         /// Generates a black and white texture with pixels closest to the edge being black.
         /// </summary>
-        FalloffMap
+        FalloffMap,
+
+        /// <summary>
+        /// Show a simple black and white texture of our 3D noise function.
+        /// </summary>
+        NoiseMap3D,
+
+        /// <summary>
+        /// Generates the mesh associated with our 3D noise function.
+        /// </summary>
+        VoxelMesh,
     }
 }

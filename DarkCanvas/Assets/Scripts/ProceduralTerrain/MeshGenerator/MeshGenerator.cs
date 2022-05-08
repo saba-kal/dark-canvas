@@ -88,6 +88,5 @@ namespace DarkCanvas.ProceduralTerrain
 
             return meshData;
         }
-
     }
 }

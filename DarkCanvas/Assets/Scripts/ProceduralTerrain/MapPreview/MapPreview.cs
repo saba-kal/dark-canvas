@@ -23,6 +23,16 @@ namespace DarkCanvas.ProceduralTerrain
         [SerializeField] private TextureSettings _textureSettings;
         [SerializeField] private Material _terrainMaterial;
 
+        public void Test()
+        {
+            var heightMap3D = NoiseMapGenerator.GenerateNoiseMap3D(
+                _meshSettings.NumberOfVerticesPerLine,
+                _meshSettings.NumberOfVerticesPerLine,
+                _meshSettings.NumberOfVerticesPerLine,
+                _heightMapSettings,
+                Vector3.zero);
+        }
+
         /// <summary>
         /// Generates the map in the Unity editor.
         /// </summary>
@@ -39,6 +49,13 @@ namespace DarkCanvas.ProceduralTerrain
                 _meshSettings.NumberOfVerticesPerLine,
                 _heightMapSettings,
                 Vector2.zero);
+
+            var noiseMap3D = NoiseMapGenerator.GenerateNoiseMap3D(
+                MeshSettings.VOXEL_CHUNK_SIZE,
+                MeshSettings.VOXEL_CHUNK_SIZE,
+                MeshSettings.VOXEL_CHUNK_SIZE,
+                _heightMapSettings,
+                Vector3.zero);
 
             switch (_drawMode)
             {
@@ -60,6 +77,13 @@ namespace DarkCanvas.ProceduralTerrain
                             MinValue = 0,
                             MaxValue = 1
                         }));
+                    break;
+                case MapDrawMode.NoiseMap3D:
+                    DrawTexture(TextureGenerator.TextureFromNoiseMap(noiseMap3D));
+                    break;
+                case MapDrawMode.VoxelMesh:
+                    DrawMesh(
+                        VoxelMeshGenerator.GenerateTerrainMesh(noiseMap3D.Values));
                     break;
             }
         }

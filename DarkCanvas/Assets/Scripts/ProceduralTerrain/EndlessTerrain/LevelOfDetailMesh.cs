@@ -38,10 +38,23 @@ namespace DarkCanvas.ProceduralTerrain
             HasRequestedMesh = true;
             ThreadedDataRequester.RequestData(
                 () => MeshGenerator.GenerateTerrainMesh(heightMap.Values, meshSettings, _levelOfDetail),
-                OnMeshDatReceived);
+                OnMeshDataReceived);
         }
 
-        private void OnMeshDatReceived(object meshData)
+        /// <summary>
+        /// Starts a separate thread for generating this mesh using voxels.
+        /// </summary>
+        /// <param name="noiseMap">3D noise map to use when creating the terrain mesh.</param>
+        /// <param name="meshSettings">Display settings for this mesh.</param>
+        public void RequestVoxelMesh(NoiseMap3D noiseMap, MeshSettings meshSettings)
+        {
+            HasRequestedMesh = true;
+            ThreadedDataRequester.RequestData(
+                () => VoxelMeshGenerator.GenerateTerrainMesh(noiseMap.Values),
+                OnMeshDataReceived);
+        }
+
+        private void OnMeshDataReceived(object meshData)
         {
             Mesh = ((MeshData)meshData).CreateMesh();
             HasMesh = true;
