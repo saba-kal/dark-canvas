@@ -5,11 +5,15 @@ namespace DarkCanvas.ProceduralTerrain
 {
     public static class NoiseMapGenerator
     {
-
         public static NoiseMap3D GenerateNoiseMap3D(
-            int width, int height, int depth, HeightMapSettings settings, Vector3 sampleCenter)
+            int width,
+            int height,
+            int depth,
+            int scale,
+            HeightMapSettings settings,
+            Vector3 sampleCenter)
         {
-            var values = Noise3D.GenerateMap(width, height, depth, settings.NoiseSettings, sampleCenter);
+            var values = Noise3D.GenerateMap(width, height, depth, scale, settings.NoiseSettings, sampleCenter);
 
             return new NoiseMap3D
             {

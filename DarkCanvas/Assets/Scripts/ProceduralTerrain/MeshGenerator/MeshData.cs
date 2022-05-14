@@ -90,6 +90,14 @@ namespace DarkCanvas.ProceduralTerrain
         /// <summary>
         /// Stores the mesh triangles.
         /// </summary>
+        public void SetNormals(Vector3[] normals)
+        {
+            _bakedNormals = normals;
+        }
+
+        /// <summary>
+        /// Stores the mesh triangles.
+        /// </summary>
         public void SetTriangles(int[] triangles)
         {
             _triangles = triangles;

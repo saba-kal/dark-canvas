@@ -45,6 +45,6 @@ namespace DarkCanvas.Data.ProceduralTerrain
             NoiseSettings.ValidateValues();
             base.OnValidate();
         }
-    }
 #endif
+    }
 }

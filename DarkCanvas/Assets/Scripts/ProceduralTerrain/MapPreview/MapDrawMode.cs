@@ -29,5 +29,10 @@
         /// Generates the mesh associated with our 3D noise function.
         /// </summary>
         VoxelMesh,
+
+        /// <summary>
+        /// Generates a voxel mesh using a simple noise. Used for debugging purposes.
+        /// </summary>
+        SimpleVoxelMesh,
     }
 }

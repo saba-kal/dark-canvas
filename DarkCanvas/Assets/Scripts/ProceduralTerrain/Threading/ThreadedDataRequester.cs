@@ -1,7 +1,7 @@
 ﻿using DarkCanvas.Common;
 using System;
 using System.Collections.Concurrent;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace DarkCanvas.ProceduralTerrain
 {
@@ -34,12 +34,19 @@ namespace DarkCanvas.ProceduralTerrain
         /// <param name="callback">Callback function for when data is returned.</param>
         public static void RequestData(Func<object> generateData, Action<object> callback)
         {
-            ThreadStart threadStart = delegate
+            var task = new Task(() =>
             {
                 Instance.DataThread(generateData, callback);
-            };
+            });
+            task.Start();
 
-            new Thread(threadStart).Start();
+            //ThreadStart threadStart = delegate
+            //{
+            //    Instance.DataThread(generateData, callback);
+            //};
+            //new Thread(threadStart).Start();
+
+            //ThreadPool.QueueUserWorkItem(new WaitCallback((object _) => Instance.DataThread(generateData, callback)));
         }
 
         private void DataThread(Func<object> generateData, Action<object> callback)

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DarkCanvas.Data.ProceduralTerrain;
+using System;
 using UnityEngine;
 
 namespace DarkCanvas.ProceduralTerrain
@@ -43,6 +44,13 @@ namespace DarkCanvas.ProceduralTerrain
         /// The location offset of the noise.
         /// </summary>
         public Vector3 Offset;
+
+        /// <summary>
+        /// Generating the triangle mesh for one block requires access to a volume of 19x19x19 voxels, where one layer
+        /// of voxels precedes the negative boundaries of the block, and two layers of voxels succeed the
+        /// positive boundaries of the block. This is why we add 3 to the chunk size.
+        /// </summary>
+        public const int NOISE_SIZE_3D = MeshSettings.VOXEL_CHUNK_SIZE + 3;
 
         /// <summary>
         /// Validates each property in this class.

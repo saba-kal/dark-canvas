@@ -56,6 +56,11 @@
             {
                 return (geometryCounts & 0x0F);
             }
+
+            public byte[] Indizes()
+            {
+                return vertexIndex;
+            }
         }
 
         // The TransitionCellData structure holds information about the triangulation

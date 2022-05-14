@@ -8,7 +8,7 @@
         /// <summary>
         /// 3D array of values that represent the noise function.
         /// </summary>
-        public int[,,] Values { get; init; }
+        public sbyte[,,] Values { get; init; }
 
         /// <summary>
         /// Minimum height map value in the 3D array.

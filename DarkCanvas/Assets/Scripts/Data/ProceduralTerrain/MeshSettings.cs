@@ -98,7 +98,7 @@ namespace DarkCanvas.Data.ProceduralTerrain
             {
                 if (_useVoxels)
                 {
-                    return (VOXEL_CHUNK_SIZE - 1);
+                    return VOXEL_CHUNK_SIZE;
                 }
                 else
                 {

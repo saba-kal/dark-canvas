@@ -52,7 +52,6 @@ namespace DarkCanvas.Player
             if (_inputManager.PlayerJumped() && _playerIsGrounded)
             {
                 _playerVelocity.y += Mathf.Sqrt(_jumpHeight * -3.0f * _gravityValue);
-                _mapPreview?.Test();
             }
 
             if (_allowFlight)

@@ -1,5 +1,5 @@
 ﻿using DarkCanvas.Data.ProceduralTerrain;
-using System;
+using System.Text;
 using UnityEngine;
 
 namespace DarkCanvas.ProceduralTerrain
@@ -10,10 +10,10 @@ namespace DarkCanvas.ProceduralTerrain
     /// </summary>
     public class VoxelTerrainChunk
     {
-        public event Action<VoxelTerrainChunk, bool> OnVisibilityChanged;
-        public Vector3 Coordinates { get; private set; }
+        public Bounds Bounds { get; private set; }
 
         private readonly Vector3 _sampleCenter;
+        private readonly int _scale = 1;
         private readonly float _colliderGenerationDistanceThreshold;
         private readonly MeshSettings _meshSettings;
         private readonly HeightMapSettings _heightMapSettings;
@@ -22,66 +22,70 @@ namespace DarkCanvas.ProceduralTerrain
         private readonly MeshRenderer _meshRenderer;
         private readonly MeshFilter _meshFilter;
         private readonly MeshCollider _meshCollider;
-        private readonly LevelOfDetailInfo[] _detailLevels;
-        private readonly LevelOfDetailMesh[] _levelOfDetailMeshes;
-        private readonly float _maxViewDistance;
 
         private NoiseMap3D _noiseMap;
+        private MeshData _meshData;
         private bool _noiseMapRecieved;
-        private int _previousLevelOfDetailIndex = -1;
+        private bool _meshRecieved;
         private bool _hasSetCollider = false;
 
         public VoxelTerrainChunk(
             TerrainChunkParams terrainChunkParams,
-            float maxViewDistance)
+            Bounds bounds)
         {
-            Coordinates = terrainChunkParams.Coordinates;
-
             var meshWorldSize = terrainChunkParams.MeshSettings.MeshWorldSize;
-            var meshScale = terrainChunkParams.MeshSettings.MeshScale;
+            var position = (bounds.center - (bounds.size / 2f));
 
-            _sampleCenter = Coordinates * meshWorldSize;
-            var position = Coordinates * meshWorldSize;
+            Bounds = bounds;
+            _scale = Mathf.FloorToInt(Bounds.size.x / meshWorldSize);
 
-            _detailLevels = terrainChunkParams.DetailLevels;
+            _sampleCenter = position / _scale;
+
             _colliderGenerationDistanceThreshold = terrainChunkParams.ColliderGenerationDistanceThreshold;
             _viewer = terrainChunkParams.Viewer;
             _meshSettings = terrainChunkParams.MeshSettings;
             _heightMapSettings = terrainChunkParams.HeightMapSettings;
 
-            _meshObject = new GameObject("Terrain Chunk");
+            _meshObject = new GameObject("Terrain chunk");
             _meshObject.transform.position = position;
             _meshObject.transform.parent = terrainChunkParams.Parent;
+            _meshObject.transform.localScale = Vector3.one * _scale;
 
             _meshRenderer = _meshObject.AddComponent<MeshRenderer>();
             _meshRenderer.material = terrainChunkParams.Material;
 
             _meshFilter = _meshObject.AddComponent<MeshFilter>();
-
-            _meshCollider = _meshObject.AddComponent<MeshCollider>();
-
-            SetVisible(false);
-
-            _levelOfDetailMeshes = new LevelOfDetailMesh[_detailLevels.Length];
-            for (int i = 0; i < _detailLevels.Length; i++)
-            {
-                _levelOfDetailMeshes[i] = new LevelOfDetailMesh(_detailLevels[i].LevelOfDetail);
-                _levelOfDetailMeshes[i].UpdateCallback += UpdateChunk;
-                if (i == 0)
-                {
-                    _levelOfDetailMeshes[i].UpdateCallback += UpdateCollisionMesh;
-                }
-            }
-
-            _maxViewDistance = maxViewDistance;
+            //_meshFilter.mesh = CreateCube();
+            //_meshCollider = _meshObject.AddComponent<MeshCollider>();
         }
 
         /// <summary>
-        /// Gets data dependencies for this terrain chunk that must be retrieved asynchronously.
+        /// Generates data required to build the terrain chunk.
         /// </summary>
-        public void Load()
+        public void GenerateChunk()
         {
-            ThreadedDataRequester.RequestData(GenerateNoiseMap, OnNoiseMapRecieved);
+            var noiseMap3D = NoiseMapGenerator.GenerateNoiseMap3D(
+                NoiseSettings.NOISE_SIZE_3D,
+                NoiseSettings.NOISE_SIZE_3D,
+                NoiseSettings.NOISE_SIZE_3D,
+                _scale,
+                _heightMapSettings,
+                _sampleCenter);
+            _noiseMapRecieved = true;
+
+            _meshData = VoxelMeshGenerator.GenerateTerrainMesh(
+                noiseMap3D.Values,
+                MeshSettings.VOXEL_CHUNK_SIZE,
+                Vector3Int.one);
+        }
+
+        /// <summary>
+        /// Builds the terrain chunk.
+        /// </summary>
+        public void BuildChunk()
+        {
+            _meshFilter.mesh = _meshData.CreateMesh();
+            _meshRecieved = true;
         }
 
         /// <summary>
@@ -94,120 +98,71 @@ namespace DarkCanvas.ProceduralTerrain
         }
 
         /// <summary>
-        /// Gets whether or not this terrain chunk is visible to the viewer.
-        /// </summary>
-        public bool IsVisible()
-        {
-            return _meshObject.activeSelf;
-        }
-
-        /// <summary>
-        /// Updates the terrain chunk to show/hide itself and change level of detail
-        /// depending on distance from viewer.
-        /// </summary>
-        public void UpdateChunk()
-        {
-            if (!_noiseMapRecieved)
-            {
-                return;
-            }
-
-            var distance = Vector3.Distance(_meshObject.transform.position, _viewer.position);
-            var wasVisible = IsVisible();
-            var visible = distance <= _maxViewDistance;
-            if (visible)
-            {
-                var levelOfDetailIndex = GetLevelOfDetailIndex(distance);
-                UpdateMesh(levelOfDetailIndex);
-            }
-
-            if (wasVisible != visible)
-            {
-                SetVisible(visible);
-                OnVisibilityChanged?.Invoke(this, visible);
-            }
-        }
-
-        /// <summary>
         /// Bakes a collision mesh for this terrain chunk.
         /// </summary>
         public void UpdateCollisionMesh()
         {
+            return;
             if (_hasSetCollider)
             {
                 //This chunk already has a mesh collider.
                 return;
             }
 
-            var collisionLevelOfDetailMesh = _levelOfDetailMeshes[0];
-            var distance = Vector3.Distance(_meshObject.transform.position, _viewer.position);
-            if (distance <= _maxViewDistance && !collisionLevelOfDetailMesh.HasRequestedMesh)
-            {
-                collisionLevelOfDetailMesh.RequestVoxelMesh(_noiseMap, _meshSettings);
-            }
-
-            if (distance < _colliderGenerationDistanceThreshold &&
-                collisionLevelOfDetailMesh.HasMesh)
-            {
-                _meshCollider.sharedMesh = collisionLevelOfDetailMesh.Mesh;
-                _hasSetCollider = true;
-            }
+            //if (_meshRecieved)
+            //{
+            //    _meshCollider.sharedMesh = _mesh;
+            //    _hasSetCollider = true;
+            //}
         }
 
-        private int GetLevelOfDetailIndex(float viewerDstFromNearestEdge)
+        private string BuildTerrainChunkName()
         {
-            var levelOfDetailIndex = 0;
-            for (var i = 0; i < _detailLevels.Length - 1; i++)
-            {
-                if (viewerDstFromNearestEdge > _detailLevels[i].VisibleDistanceThreshold)
-                {
-                    levelOfDetailIndex = i + 1;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            return levelOfDetailIndex;
+            var stringBuilder = new StringBuilder();
+            stringBuilder.Append("Terrain Chunk (scale:");
+            stringBuilder.Append(_scale);
+            stringBuilder.Append(", sample:");
+            stringBuilder.Append(_sampleCenter);
+            stringBuilder.Append(")");
+            return stringBuilder.ToString();
         }
 
-        private void UpdateMesh(int levelOfDetailIndex)
+        //This is test code.
+        private Mesh CreateCube()
         {
-            if (levelOfDetailIndex == _previousLevelOfDetailIndex)
-            {
-                //Level of detail did not change since last time.
-                return;
-            }
+            Vector3[] vertices = {
+                new Vector3 (0, 0, 0),
+                new Vector3 (1, 0, 0),
+                new Vector3 (1, 1, 0),
+                new Vector3 (0, 1, 0),
+                new Vector3 (0, 1, 1),
+                new Vector3 (1, 1, 1),
+                new Vector3 (1, 0, 1),
+                new Vector3 (0, 0, 1),
+            };
 
-            var levelOfDetailMesh = _levelOfDetailMeshes[levelOfDetailIndex];
-            if (levelOfDetailMesh.HasMesh)
-            {
-                _previousLevelOfDetailIndex = levelOfDetailIndex;
-                _meshFilter.mesh = levelOfDetailMesh.Mesh;
-            }
-            else if (!levelOfDetailMesh.HasRequestedMesh)
-            {
-                levelOfDetailMesh.RequestVoxelMesh(_noiseMap, _meshSettings);
-            }
-        }
+            int[] triangles = {
+                0, 2, 1, //face front
+                0, 3, 2,
+                2, 3, 4, //face top
+                2, 4, 5,
+                1, 2, 5, //face right
+                1, 5, 6,
+                0, 7, 4, //face left
+                0, 4, 3,
+                5, 4, 7, //face back
+                5, 7, 6,
+                0, 6, 7, //face bottom
+                0, 1, 6
+            };
 
-        private NoiseMap3D GenerateNoiseMap()
-        {
-            return NoiseMapGenerator.GenerateNoiseMap3D(
-                MeshSettings.VOXEL_CHUNK_SIZE,
-                MeshSettings.VOXEL_CHUNK_SIZE,
-                MeshSettings.VOXEL_CHUNK_SIZE,
-                _heightMapSettings,
-                _sampleCenter);
-        }
-
-        private void OnNoiseMapRecieved(object noiseMap)
-        {
-            _noiseMap = (NoiseMap3D)(noiseMap);
-            _noiseMapRecieved = true;
-
-            UpdateChunk();
+            var mesh = new Mesh();
+            mesh.Clear();
+            mesh.vertices = vertices;
+            mesh.triangles = triangles;
+            mesh.Optimize();
+            mesh.RecalculateNormals();
+            return mesh;
         }
     }
 }

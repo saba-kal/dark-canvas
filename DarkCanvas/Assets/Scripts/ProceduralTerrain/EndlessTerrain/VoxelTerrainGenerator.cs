@@ -10,6 +10,9 @@ namespace DarkCanvas.ProceduralTerrain
         [SerializeField] private float _viewerMoveThresholdForChunkUpdate = 25f;
         [SerializeField] private float _colliderGenerationDistanceThreshold = 5f;
         [SerializeField] private float _terrainRenderDistance = 100f;
+        [SerializeField] private int _renderDistanceMultiplier = 16;
+        [SerializeField] private int _terrainChunksToBuildPerThread = 10;
+        [SerializeField] private int _terrainChunkBatchesToBuildPerFrame = 5;
         [SerializeField] private MeshSettings _meshSettings;
         [SerializeField] private HeightMapSettings _heightMapSettings;
         [SerializeField] private TextureSettings _textureSettings;
@@ -20,11 +23,12 @@ namespace DarkCanvas.ProceduralTerrain
         private float _meshWorldSize;
         private int _chunksVisibleInViewDistance;
         private List<VoxelTerrainChunk> _visibleTerrainChunks = new List<VoxelTerrainChunk>();
-        private Dictionary<Vector3, VoxelTerrainChunk> _terrainChunkDictionary =
-            new Dictionary<Vector3, VoxelTerrainChunk>();
+        private Dictionary<Bounds, VoxelTerrainChunk> _terrainChunkDictionary =
+            new Dictionary<Bounds, VoxelTerrainChunk>();
         private float _sqrViewerMoveThresholdForChunkUpdate;
         private Vector3 _viewerPositionOld;
-
+        private Octree _octree;
+        private Queue<VoxelTerrainChunk> _terrainChunksToBuild = new Queue<VoxelTerrainChunk>();
 
         private void Start()
         {
@@ -52,74 +56,84 @@ namespace DarkCanvas.ProceduralTerrain
                 _viewerPositionOld = _viewer.position;
                 UpdateVisibleChunks();
             }
+
+            BuildTerrainChunks();
         }
 
         private void UpdateVisibleChunks()
         {
-            var alreadyUpdatedChunkCoords = new HashSet<Vector3>();
-            //Decrement backwards in case list size changes.
-            for (var i = _visibleTerrainChunks.Count - 1; i >= 0; i--)
+            var currentChunkPosition = new Vector3(
+                Mathf.RoundToInt(_viewer.position.x / _meshWorldSize) * _meshWorldSize,
+                Mathf.RoundToInt(_viewer.position.y / _meshWorldSize) * _meshWorldSize,
+                Mathf.RoundToInt(_viewer.position.z / _meshWorldSize) * _meshWorldSize);
+
+            _octree = new Octree(
+                new Bounds(currentChunkPosition, Vector3.one * _meshWorldSize * _renderDistanceMultiplier),
+                _meshWorldSize);
+            _octree.Insert(_viewer.position);
+
+            var visibleChunkBounds = new HashSet<Bounds>();
+            foreach (var bound in _octree.GetAllLeafBounds())
             {
-                alreadyUpdatedChunkCoords.Add(_visibleTerrainChunks[i].Coordinates);
-                _visibleTerrainChunks[i].UpdateChunk();
+                if (_terrainChunkDictionary.TryGetValue(bound, out var terrainChunk))
+                {
+                    //Terrain chunk was previously visited.
+                    terrainChunk.SetVisible(true);
+                }
+                else
+                {
+                    //Terrain chunk does not exist. Generate a new one.
+                    terrainChunk = CreateTerrainChunk(bound);
+                    _terrainChunksToBuild.Enqueue(terrainChunk);
+                    _terrainChunkDictionary.Add(bound, terrainChunk);
+                }
+                visibleChunkBounds.Add(bound);
             }
 
-            var currentChunkCoordX = Mathf.RoundToInt(_viewer.position.x / _meshWorldSize);
-            var currentChunkCoordY = Mathf.RoundToInt(_viewer.position.y / _meshWorldSize);
-            var currentChunkCoordZ = Mathf.RoundToInt(_viewer.position.z / _meshWorldSize);
-
-            for (var zOffset = -_chunksVisibleInViewDistance; zOffset <= _chunksVisibleInViewDistance; zOffset++)
+            //Hide chunks that are not part of the generated octree.
+            foreach (var chunk in _terrainChunkDictionary.Values)
             {
-                for (var yOffset = -_chunksVisibleInViewDistance; yOffset <= _chunksVisibleInViewDistance; yOffset++)
+                if (!visibleChunkBounds.Contains(chunk.Bounds))
                 {
-                    for (var xOffset = -_chunksVisibleInViewDistance; xOffset <= _chunksVisibleInViewDistance; xOffset++)
-                    {
-                        var viewedChunkCoord = new Vector3(
-                            currentChunkCoordX + xOffset,
-                            currentChunkCoordY + yOffset,
-                            currentChunkCoordZ + zOffset);
-
-                        if (alreadyUpdatedChunkCoords.Contains(viewedChunkCoord))
-                        {
-                            continue;
-                        }
-
-                        if (_terrainChunkDictionary.TryGetValue(viewedChunkCoord, out var terrainChunk))
-                        {
-                            //Terrain chunk was previously visited.
-                            terrainChunk.UpdateChunk();
-                        }
-                        else
-                        {
-                            //Terrain chunk does not exist. Generate a new one.
-                            terrainChunk = BuildTerrainChunk(viewedChunkCoord);
-                            _terrainChunkDictionary.Add(viewedChunkCoord, terrainChunk);
-                            terrainChunk.OnVisibilityChanged += OnTerrainChunkVisiblityChanged;
-                            terrainChunk.Load();
-                        }
-                    }
+                    chunk.SetVisible(false);
                 }
             }
         }
 
-        private void OnTerrainChunkVisiblityChanged(VoxelTerrainChunk terrainChunk, bool visible)
+        private void BuildTerrainChunks()
         {
-            if (terrainChunk.IsVisible())
+            if (_terrainChunksToBuild.Count == 0)
             {
-                _visibleTerrainChunks.Add(terrainChunk);
+                return;
             }
-            else
+
+            for (var i = 0; i < _terrainChunkBatchesToBuildPerFrame; i++)
             {
-                _visibleTerrainChunks.Remove(terrainChunk);
+                var terrainChunksToBuildThisBatch = new List<VoxelTerrainChunk>();
+                while (_terrainChunksToBuild.Count > 0)
+                {
+                    terrainChunksToBuildThisBatch.Add(_terrainChunksToBuild.Dequeue());
+                    if (terrainChunksToBuildThisBatch.Count >= _terrainChunksToBuildPerThread)
+                    {
+                        var terrainChunkBuilder = new TerrainChunkBuilder(terrainChunksToBuildThisBatch);
+                        terrainChunkBuilder.BuildTerrainChunks();
+                        terrainChunksToBuildThisBatch = new List<VoxelTerrainChunk>();
+                    }
+                }
+
+                if (_terrainChunksToBuild.Count == 0)
+                {
+                    break;
+                }
             }
+
         }
 
-        private VoxelTerrainChunk BuildTerrainChunk(Vector3 coordinates)
+        private VoxelTerrainChunk CreateTerrainChunk(Bounds bounds)
         {
             return new VoxelTerrainChunk(
                 new TerrainChunkParams
                 {
-                    Coordinates = coordinates,
                     DetailLevels = _detailLevels,
                     Parent = transform,
                     Material = _terrainMaterial,
@@ -129,7 +143,18 @@ namespace DarkCanvas.ProceduralTerrain
                     MeshSettings = _meshSettings,
                     HeightMapSettings = _heightMapSettings
                 },
-                _terrainRenderDistance);
+                bounds);
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (_octree == null)
+            {
+                return;
+            }
+
+            Gizmos.color = Color.blue;
+            _octree.DrawGizmo();
         }
     }
 }
