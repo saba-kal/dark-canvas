@@ -15,10 +15,10 @@ MonoBehaviour:
   _autoUpdate: 1
   _noiseSettings:
     NormalizeMode: 1
-    Scale: 1
-    Octaves: 1
-    Persistence: 0
-    Lacunarity: 1
+    Scale: 0.5
+    Octaves: 4
+    Persistence: 0.532
+    Lacunarity: 2.5
     Seed: 0
     Offset: {x: 0, y: 0, z: 0}
   _useFalloff: 0
