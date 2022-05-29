@@ -73,10 +73,9 @@ namespace DarkCanvas.ProceduralTerrain
                 _sampleCenter);
             _noiseMapRecieved = true;
 
-            _meshData = VoxelMeshGenerator.GenerateTerrainMesh(
-                noiseMap3D.Values,
-                MeshSettings.VOXEL_CHUNK_SIZE,
-                Vector3Int.one);
+
+            _meshData = new VoxelMeshGenerator(noiseMap3D.Values, MeshSettings.VOXEL_CHUNK_SIZE)
+                .GenerateTerrainMesh(Vector3Int.one);
         }
 
         /// <summary>

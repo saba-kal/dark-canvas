@@ -11,7 +11,7 @@ namespace DarkCanvas.ProceduralTerrain
         /// <summary>
         /// Generates a 3D noise map.
         /// </summary>
-        public static sbyte[,,] GenerateMap(
+        public static float[,,] GenerateMap(
             int mapWidth,
             int mapHeight,
             int mapDepth,
@@ -19,7 +19,7 @@ namespace DarkCanvas.ProceduralTerrain
             NoiseSettings noiseSettings,
             Vector3 sampleCenter)
         {
-            var noiseMap = new sbyte[mapWidth, mapHeight, mapDepth];
+            var noiseMap = new float[mapWidth, mapHeight, mapDepth];
 
             var offsetX = noiseSettings.Offset.x + sampleCenter.x;
             var offsetY = noiseSettings.Offset.y + sampleCenter.y;
@@ -51,12 +51,14 @@ namespace DarkCanvas.ProceduralTerrain
                             noiseLocation.x,
                             noiseLocation.z);
 
-                        if (noiseLocation.y > noise2D * 100)
-                        {
-                            noiseValue = -Mathf.Abs(noiseValue);
-                        }
+                        //if (noiseLocation.y > noise2D * 100)
+                        //{
+                        //    noiseValue = -Mathf.Abs(noiseValue);
+                        //}
 
-                        noiseMap[x, y, z] = (sbyte)Mathf.Clamp(-noiseValue * 500, -128, 127);
+                        //noiseMap[x, y, z] = (sbyte)Mathf.Clamp(-noiseValue * 500, -128, 127);
+                        var noiseInt = (int)(noiseValue * 255);
+                        noiseMap[x, y, z] = noiseValue;
                     }
                 }
             }

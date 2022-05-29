@@ -78,7 +78,7 @@ namespace DarkCanvas.ProceduralTerrain
                     break;
                 case MapDrawMode.VoxelMesh:
                     DrawMesh(
-                        VoxelMeshGenerator.GenerateTerrainMesh(_noiseMap3D.Values, MeshSettings.VOXEL_CHUNK_SIZE, Vector3Int.one));
+                        new VoxelMeshGenerator(_noiseMap3D.Values, MeshSettings.VOXEL_CHUNK_SIZE).GenerateTerrainMesh(Vector3Int.one));
                     break;
                 case MapDrawMode.SimpleVoxelMesh:
                     DrawSimpleVoxelMesh();
@@ -105,7 +105,7 @@ namespace DarkCanvas.ProceduralTerrain
         {
             const int chunkSize = 2;
             const int noiseSize = chunkSize + 3;
-            var noiseMap3D = new sbyte[noiseSize, noiseSize, noiseSize];
+            var noiseMap3D = new float[noiseSize, noiseSize, noiseSize];
             for (var x = 0; x < noiseSize; x++)
             {
                 for (var y = 0; y < noiseSize; y++)
@@ -121,7 +121,7 @@ namespace DarkCanvas.ProceduralTerrain
             }
 
             DrawMesh(
-                VoxelMeshGenerator.GenerateTerrainMesh(noiseMap3D, chunkSize, Vector3Int.one));
+                new VoxelMeshGenerator(noiseMap3D, chunkSize).GenerateTerrainMesh(Vector3Int.one));
         }
 
         private void OnValidate()
