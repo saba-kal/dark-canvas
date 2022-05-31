@@ -6,6 +6,7 @@ namespace DarkCanvas.ProceduralTerrain
     /// Represents one of the six sides on a cube terrain chunk. 
     /// </summary>
     [Flags]
+    [Serializable]
     public enum CubeFaceDirection
     {
         None = 0,

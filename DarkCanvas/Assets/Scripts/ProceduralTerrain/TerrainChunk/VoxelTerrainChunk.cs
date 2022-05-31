@@ -1,5 +1,4 @@
 ﻿using DarkCanvas.Data.ProceduralTerrain;
-using System.Text;
 using UnityEngine;
 
 namespace DarkCanvas.ProceduralTerrain
@@ -14,24 +13,19 @@ namespace DarkCanvas.ProceduralTerrain
 
         private readonly Vector3 _sampleCenter;
         private readonly int _scale = 1;
-        private readonly float _colliderGenerationDistanceThreshold;
-        private readonly MeshSettings _meshSettings;
         private readonly HeightMapSettings _heightMapSettings;
-        private readonly Transform _viewer;
         private readonly GameObject _meshObject;
         private readonly MeshRenderer _meshRenderer;
         private readonly MeshFilter _meshFilter;
-        private readonly MeshCollider _meshCollider;
+        private readonly Octree _octree;
 
         private NoiseMap3D _noiseMap;
         private MeshData _meshData;
-        private bool _noiseMapRecieved;
-        private bool _meshRecieved;
-        private bool _hasSetCollider = false;
 
         public VoxelTerrainChunk(
             TerrainChunkParams terrainChunkParams,
-            Bounds bounds)
+            Bounds bounds,
+            Octree octree)
         {
             var meshWorldSize = terrainChunkParams.MeshSettings.MeshWorldSize;
             var position = (bounds.center - (bounds.size / 2f));
@@ -41,9 +35,6 @@ namespace DarkCanvas.ProceduralTerrain
 
             _sampleCenter = position / _scale;
 
-            _colliderGenerationDistanceThreshold = terrainChunkParams.ColliderGenerationDistanceThreshold;
-            _viewer = terrainChunkParams.Viewer;
-            _meshSettings = terrainChunkParams.MeshSettings;
             _heightMapSettings = terrainChunkParams.HeightMapSettings;
 
             _meshObject = new GameObject("Terrain chunk");
@@ -55,8 +46,7 @@ namespace DarkCanvas.ProceduralTerrain
             _meshRenderer.material = terrainChunkParams.Material;
 
             _meshFilter = _meshObject.AddComponent<MeshFilter>();
-            //_meshFilter.mesh = CreateCube();
-            //_meshCollider = _meshObject.AddComponent<MeshCollider>();
+            _octree = octree;
         }
 
         /// <summary>
@@ -71,11 +61,12 @@ namespace DarkCanvas.ProceduralTerrain
                 _scale,
                 _heightMapSettings,
                 _sampleCenter);
-            _noiseMapRecieved = true;
 
-
-            _meshData = new VoxelMeshGenerator(noiseMap3D.Values, MeshSettings.VOXEL_CHUNK_SIZE)
-                .GenerateTerrainMesh(Vector3Int.one);
+            _meshData = new VoxelMeshGenerator(
+                noiseMap3D.Values,
+                MeshSettings.VOXEL_CHUNK_SIZE,
+                GetNeighborChunksWithLowerLod(),
+                Vector3Int.one).GenerateTerrainMesh();
         }
 
         /// <summary>
@@ -84,7 +75,6 @@ namespace DarkCanvas.ProceduralTerrain
         public void BuildChunk()
         {
             _meshFilter.mesh = _meshData.CreateMesh();
-            _meshRecieved = true;
         }
 
         /// <summary>
@@ -96,72 +86,48 @@ namespace DarkCanvas.ProceduralTerrain
             _meshObject.SetActive(visible);
         }
 
-        /// <summary>
-        /// Bakes a collision mesh for this terrain chunk.
-        /// </summary>
-        public void UpdateCollisionMesh()
+        private CubeFaceDirection GetNeighborChunksWithLowerLod()
         {
-            return;
-            if (_hasSetCollider)
+            var neighborChunksWithLowerLod = CubeFaceDirection.None;
+            var translationAmount = Bounds.size.x;
+
+            var rightBound = _octree.GetBound(Bounds.center + new Vector3(translationAmount, 0, 0));
+            if (rightBound.HasValue && rightBound.Value.size.x > Bounds.size.x)
             {
-                //This chunk already has a mesh collider.
-                return;
+                neighborChunksWithLowerLod |= CubeFaceDirection.PositiveX;
             }
 
-            //if (_meshRecieved)
-            //{
-            //    _meshCollider.sharedMesh = _mesh;
-            //    _hasSetCollider = true;
-            //}
-        }
+            var leftBound = _octree.GetBound(Bounds.center + new Vector3(-translationAmount, 0, 0));
+            if (leftBound.HasValue && leftBound.Value.size.x > Bounds.size.x)
+            {
+                neighborChunksWithLowerLod |= CubeFaceDirection.NegativeX;
+            }
 
-        private string BuildTerrainChunkName()
-        {
-            var stringBuilder = new StringBuilder();
-            stringBuilder.Append("Terrain Chunk (scale:");
-            stringBuilder.Append(_scale);
-            stringBuilder.Append(", sample:");
-            stringBuilder.Append(_sampleCenter);
-            stringBuilder.Append(")");
-            return stringBuilder.ToString();
-        }
+            var topBound = _octree.GetBound(Bounds.center + new Vector3(0, translationAmount, 0));
+            if (topBound.HasValue && topBound.Value.size.x > Bounds.size.x)
+            {
+                neighborChunksWithLowerLod |= CubeFaceDirection.PositiveY;
+            }
 
-        //This is test code.
-        private Mesh CreateCube()
-        {
-            Vector3[] vertices = {
-                new Vector3 (0, 0, 0),
-                new Vector3 (1, 0, 0),
-                new Vector3 (1, 1, 0),
-                new Vector3 (0, 1, 0),
-                new Vector3 (0, 1, 1),
-                new Vector3 (1, 1, 1),
-                new Vector3 (1, 0, 1),
-                new Vector3 (0, 0, 1),
-            };
+            var bottomBound = _octree.GetBound(Bounds.center + new Vector3(0, -translationAmount, 0));
+            if (bottomBound.HasValue && bottomBound.Value.size.x > Bounds.size.x)
+            {
+                neighborChunksWithLowerLod |= CubeFaceDirection.NegativeY;
+            }
 
-            int[] triangles = {
-                0, 2, 1, //face front
-                0, 3, 2,
-                2, 3, 4, //face top
-                2, 4, 5,
-                1, 2, 5, //face right
-                1, 5, 6,
-                0, 7, 4, //face left
-                0, 4, 3,
-                5, 4, 7, //face back
-                5, 7, 6,
-                0, 6, 7, //face bottom
-                0, 1, 6
-            };
+            var forwardBound = _octree.GetBound(Bounds.center + new Vector3(0, 0, translationAmount));
+            if (forwardBound.HasValue && forwardBound.Value.size.x > Bounds.size.x)
+            {
+                neighborChunksWithLowerLod |= CubeFaceDirection.PositiveZ;
+            }
 
-            var mesh = new Mesh();
-            mesh.Clear();
-            mesh.vertices = vertices;
-            mesh.triangles = triangles;
-            mesh.Optimize();
-            mesh.RecalculateNormals();
-            return mesh;
+            var backwardBound = _octree.GetBound(Bounds.center + new Vector3(0, 0, -translationAmount));
+            if (backwardBound.HasValue && backwardBound.Value.size.x > Bounds.size.x)
+            {
+                neighborChunksWithLowerLod |= CubeFaceDirection.NegativeZ;
+            }
+
+            return neighborChunksWithLowerLod;
         }
     }
 }

@@ -16,6 +16,7 @@ namespace DarkCanvas.ProceduralTerrain
         [SerializeField] private MeshFilter _meshFilter;
         [SerializeField] private MeshRenderer _meshRenderer;
         [SerializeField] private MapDrawMode _drawMode;
+        [SerializeField] private CubeFaceDirection _facesWithTransitionCells;
         [Range(0, MeshSettings.NUMBER_OF_SUPPORTED_LODS - 1)]
         [SerializeField] private int _previewLevelOfDetail;
 
@@ -78,7 +79,8 @@ namespace DarkCanvas.ProceduralTerrain
                     break;
                 case MapDrawMode.VoxelMesh:
                     DrawMesh(
-                        new VoxelMeshGenerator(_noiseMap3D.Values, MeshSettings.VOXEL_CHUNK_SIZE).GenerateTerrainMesh(Vector3Int.one));
+                        new VoxelMeshGenerator(_noiseMap3D.Values, MeshSettings.VOXEL_CHUNK_SIZE, _facesWithTransitionCells, Vector3Int.one)
+                            .GenerateTerrainMesh());
                     break;
                 case MapDrawMode.SimpleVoxelMesh:
                     DrawSimpleVoxelMesh();
@@ -120,8 +122,8 @@ namespace DarkCanvas.ProceduralTerrain
                 }
             }
 
-            DrawMesh(
-                new VoxelMeshGenerator(noiseMap3D, chunkSize).GenerateTerrainMesh(Vector3Int.one));
+            DrawMesh(new VoxelMeshGenerator(noiseMap3D, chunkSize, _facesWithTransitionCells, Vector3Int.one)
+                .GenerateTerrainMesh());
         }
 
         private void OnValidate()

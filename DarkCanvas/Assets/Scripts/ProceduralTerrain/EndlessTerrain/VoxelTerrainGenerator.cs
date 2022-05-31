@@ -46,7 +46,7 @@ namespace DarkCanvas.ProceduralTerrain
             {
                 foreach (var terrainChunk in _visibleTerrainChunks)
                 {
-                    terrainChunk.UpdateCollisionMesh();
+                    //terrainChunk.UpdateCollisionMesh();
                 }
             }
 
@@ -143,7 +143,8 @@ namespace DarkCanvas.ProceduralTerrain
                     MeshSettings = _meshSettings,
                     HeightMapSettings = _heightMapSettings
                 },
-                bounds);
+                bounds,
+                _octree);
         }
 
         private void OnDrawGizmos()

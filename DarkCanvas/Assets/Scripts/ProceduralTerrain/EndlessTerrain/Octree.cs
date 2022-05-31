@@ -31,7 +31,7 @@ namespace DarkCanvas.ProceduralTerrain
         /// <param name="position">The insert position.</param>
         public void Insert(Vector3 position)
         {
-            var dist = Vector3.Distance(_bounds.center, position) * 0.5f;
+            var dist = Vector3.Distance(_bounds.center, position) * 1f;
             if (dist < _bounds.size.x && _bounds.size.x > _minNodeSize)
             {
                 CreateChildren(position);
@@ -57,6 +57,36 @@ namespace DarkCanvas.ProceduralTerrain
                 }
             }
             return bounds;
+        }
+
+        /// <summary>
+        /// Gets the bounds for a leaf node given a specific position.
+        /// </summary>
+        /// <param name="position">The position to get the bounding box for.</param>
+        public Bounds? GetBound(Vector3 position)
+        {
+            if (_children == null)
+            {
+                if (_bounds.Contains(position))
+                {
+                    return _bounds;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            for (var i = 0; i < _children.Length; i++)
+            {
+                var childBounds = _children[i].GetBound(position);
+                if (childBounds != null)
+                {
+                    return childBounds;
+                }
+            }
+
+            return null;
         }
 
         private void CreateChildren(Vector3 position)

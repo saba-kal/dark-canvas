@@ -7,26 +7,26 @@ namespace DarkCanvas.ProceduralTerrain
     {
         private readonly float[,,] _voxelData;
         private readonly int _size;
-        private readonly CubeFaceDirection _chunkFacesWithLowerLod =
-            CubeFaceDirection.NegativeX |
-            CubeFaceDirection.PositiveX |
-            CubeFaceDirection.PositiveY;
+        private readonly CubeFaceDirection _chunkFacesWithLowerLod;
+        private readonly Vector3Int _min;
 
         public VoxelMeshGenerator(
             float[,,] voxelData,
-            int size)
+            int size,
+            CubeFaceDirection chunkFacesWithLowerLod,
+            Vector3Int min)
         {
             _voxelData = voxelData;
             _size = size;
+            _chunkFacesWithLowerLod = chunkFacesWithLowerLod;
+            _min = min;
         }
 
         /// <summary>
         /// Generates a terrain mesh using marching cubes.
         /// </summary>
-        /// <param name="voxelData">3D array of noise values.</param>
         /// <returns>Object holding all data needed to create the mesh in Unity.</returns>
-        public MeshData GenerateTerrainMesh(
-            Vector3Int min)
+        public MeshData GenerateTerrainMesh()
         {
             var meshData = new MeshData(_size, false);
             var vertices = new List<Vector3>();
@@ -41,7 +41,7 @@ namespace DarkCanvas.ProceduralTerrain
                     for (var z = 0; z < _size; z++)
                     {
                         var pos = new Vector3Int(x, y, z);
-                        var offsetPos = pos + min;
+                        var offsetPos = pos + _min;
                         GenerateRegularCell(pos, offsetPos, vertices, normals, triangles, vertices2Indices);
                     }
                 }
@@ -60,7 +60,7 @@ namespace DarkCanvas.ProceduralTerrain
                     for (var y = 0; y < _size; y += 2)
                     {
                         var pos = ConvertChunkFaceCoordToVoxelCoord(x, y, direction);
-                        var offsetPos = pos + min;
+                        var offsetPos = pos + _min;
                         GenerateTransitionCell(pos, offsetPos, vertices, normals, triangles, vertices2Indices, direction);
                     }
                 }
@@ -105,7 +105,7 @@ namespace DarkCanvas.ProceduralTerrain
             List<int> triangles,
             Dictionary<Vector3, int> vertices2Indices)
         {
-            var density = GetCellCorners(offsetPos.x, offsetPos.y, offsetPos.z);
+            var density = GetCellCorners(pos.x, pos.y, pos.z);
             var caseCode = GetCaseCode(density);
             if (caseCode == 0 || caseCode == 255)
             {
@@ -203,8 +203,6 @@ namespace DarkCanvas.ProceduralTerrain
             }
         }
 
-
-
         private void GenerateTransitionCell(
             Vector3Int pos,
             Vector3Int offsetPos,
@@ -214,7 +212,7 @@ namespace DarkCanvas.ProceduralTerrain
             Dictionary<Vector3, int> vertices2Indices,
             CubeFaceDirection direction)
         {
-            var cellSamples = GetTransitionCellSamples(offsetPos.x, offsetPos.y, offsetPos.z, direction);
+            var cellSamples = GetTransitionCellSamples(pos.x, pos.y, pos.z, direction);
             var caseCode = GetTransitionCaseCode(cellSamples);
 
             if (caseCode == 0 || caseCode == 511)
