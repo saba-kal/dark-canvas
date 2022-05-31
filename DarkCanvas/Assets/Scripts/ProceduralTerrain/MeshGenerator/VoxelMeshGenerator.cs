@@ -7,6 +7,10 @@ namespace DarkCanvas.ProceduralTerrain
     {
         private readonly float[,,] _voxelData;
         private readonly int _size;
+        private readonly CubeFaceDirection _chunkFacesWithLowerLod =
+            CubeFaceDirection.NegativeX |
+            CubeFaceDirection.PositiveX |
+            CubeFaceDirection.PositiveY;
 
         public VoxelMeshGenerator(
             float[,,] voxelData,
@@ -34,7 +38,7 @@ namespace DarkCanvas.ProceduralTerrain
             {
                 for (var y = 0; y < _size; y++)
                 {
-                    for (var z = 0; z < _size - 1; z++)
+                    for (var z = 0; z < _size; z++)
                     {
                         var pos = new Vector3Int(x, y, z);
                         var offsetPos = pos + min;
@@ -43,13 +47,22 @@ namespace DarkCanvas.ProceduralTerrain
                 }
             }
 
-            for (var x = 0; x < _size; x += 2)
+            for (var i = 0; i < 6; i++)
             {
-                for (var y = 0; y < _size; y += 2)
+                var direction = (CubeFaceDirection)(1 << i);
+                if (!_chunkFacesWithLowerLod.HasFlag(direction))
                 {
-                    var pos = new Vector3Int(x, y, _size - 1);
-                    var offsetPos = pos + min;
-                    GenerateTransitionCell(pos, offsetPos, vertices, normals, triangles, vertices2Indices);
+                    continue;
+                }
+
+                for (var x = 0; x < _size; x += 2)
+                {
+                    for (var y = 0; y < _size; y += 2)
+                    {
+                        var pos = ConvertChunkFaceCoordToVoxelCoord(x, y, direction);
+                        var offsetPos = pos + min;
+                        GenerateTransitionCell(pos, offsetPos, vertices, normals, triangles, vertices2Indices, direction);
+                    }
                 }
             }
 
@@ -58,6 +71,30 @@ namespace DarkCanvas.ProceduralTerrain
             meshData.SetTriangles(triangles.ToArray());
 
             return meshData;
+        }
+
+        private Vector3Int ConvertChunkFaceCoordToVoxelCoord(
+            int fx, int fy, CubeFaceDirection direction)
+        {
+            switch (direction)
+            {
+                case CubeFaceDirection.None:
+                    return new Vector3Int(0, 0, 0);
+                case CubeFaceDirection.NegativeX:
+                    return new Vector3Int(0, fy, fx);
+                case CubeFaceDirection.PositiveX:
+                    return new Vector3Int(_size, fy, fx);
+                case CubeFaceDirection.NegativeY:
+                    return new Vector3Int(fx, 0, fy);
+                case CubeFaceDirection.PositiveY:
+                    return new Vector3Int(fx, _size, fy);
+                case CubeFaceDirection.NegativeZ:
+                    return new Vector3Int(fx, fy, 0);
+                case CubeFaceDirection.PositiveZ:
+                    return new Vector3Int(fx, fy, _size);
+            }
+
+            return new Vector3Int(fx, fy, 0);
         }
 
         private void GenerateRegularCell(
@@ -127,11 +164,17 @@ namespace DarkCanvas.ProceduralTerrain
                 float t0 = t;
                 float t1 = 1f - t;
 
-                var poIndex = pos + cornerIndex[v0];
-                var p0 = new Vector3(poIndex.x, poIndex.y, poIndex.z);
-                var p1Index = pos + cornerIndex[v1];
-                var p1 = new Vector3(p1Index.x, p1Index.y, p1Index.z);
+                var p0i = pos + cornerIndex[v0];
+                var p0 = new Vector3(p0i.x, p0i.y, p0i.z);
+                var p1i = pos + cornerIndex[v1];
+                var p1 = new Vector3(p1i.x, p1i.y, p1i.z);
                 var vertex = p0 * t0 + p1 * t1;
+                var normal = cornerNormals[v0] * t0 + cornerNormals[v1] * t1;
+
+                if (PositionShouldUseBePushedBack(p0i) || PositionShouldUseBePushedBack(p1i))
+                {
+                    vertex = GetSecondaryVertexPosition(vertex, normal, 0, 1);
+                }
 
                 int index;
                 if (vertices2Indices.TryGetValue(vertex, out var cachedIndex))
@@ -140,7 +183,6 @@ namespace DarkCanvas.ProceduralTerrain
                 }
                 else
                 {
-                    var normal = cornerNormals[v0] * t0 + cornerNormals[v1] * t1;
                     normals.Add(normal);
 
                     vertices.Add(vertex);
@@ -161,15 +203,18 @@ namespace DarkCanvas.ProceduralTerrain
             }
         }
 
+
+
         private void GenerateTransitionCell(
             Vector3Int pos,
             Vector3Int offsetPos,
             List<Vector3> vertices,
             List<Vector3> normals,
             List<int> triangles,
-            Dictionary<Vector3, int> vertices2Indices)
+            Dictionary<Vector3, int> vertices2Indices,
+            CubeFaceDirection direction)
         {
-            var cellSamples = GetTransitionCellCorners(offsetPos.x, offsetPos.y, offsetPos.z);
+            var cellSamples = GetTransitionCellSamples(offsetPos.x, offsetPos.y, offsetPos.z, direction);
             var caseCode = GetTransitionCaseCode(cellSamples);
 
             if (caseCode == 0 || caseCode == 511)
@@ -178,10 +223,16 @@ namespace DarkCanvas.ProceduralTerrain
                 return;
             }
 
+            if (offsetPos.x == 15 && offsetPos.y == 15)
+            {
+                Debug.Log(cellSamples[12]);
+            }
+
             var cellNormals = new Vector3[13];
             for (int i = 0; i < 9; i++)
             {
-                var p = offsetPos + transitionCornerIndex[i];
+                var p = offsetPos + GetTransitionVertexIndices(direction)[i];
+                //var p = offsetPos;
                 float nx = (_voxelData[p.x + 1, p.y, p.z] - _voxelData[p.x - 1, p.y, p.z]) * 0.5f;
                 float ny = (_voxelData[p.x, p.y + 1, p.z] - _voxelData[p.x, p.y - 1, p.z]) * 0.5f;
                 float nz = (_voxelData[p.x, p.y, p.z + 1] - _voxelData[p.x, p.y, p.z - 1]) * 0.5f;
@@ -197,7 +248,19 @@ namespace DarkCanvas.ProceduralTerrain
 
             //High bit in cell class indicates whether we should flip the triangles.
             var cellClass = Transvoxel.transitionCellClass[caseCode];
-            var flipTriangles = (cellClass & 0b_1000_0000) != 0;
+            bool flipTriangles;
+            if (direction == CubeFaceDirection.NegativeZ ||
+                direction == CubeFaceDirection.PositiveX ||
+                direction == CubeFaceDirection.PositiveY)
+            {
+                //No idea why I need to do this. If I don't, triangle will be inverted on certain faces.
+                flipTriangles = (cellClass & 0b_1000_0000) == 0;
+            }
+            else
+            {
+                flipTriangles = (cellClass & 0b_1000_0000) != 0;
+            }
+
             var cellData = Transvoxel.transitionCellData[cellClass & 0b_0111_1111];
             var vertexLocations = Transvoxel.transitionVertexData[caseCode];
             var vertexCount = cellData.GetVertexCount();
@@ -235,21 +298,36 @@ namespace DarkCanvas.ProceduralTerrain
                 float t0 = t;
                 float t1 = 1f - t;
 
-                byte cellIndex = t == 0 ? v1 : v0;
-                var isFullResSide = cellIndex < 9;
+                var isFullResSide = false;
+                if (t > 0 && t < 1)
+                {
+                    //Vertex lies in the interior edge
+                    isFullResSide = v1 < 9 || v0 < 9;
+                }
+                else
+                {
+                    // The vertex is exactly on one of the edge endpoints.
+                    var cellIndex = t == 0 ? v1 : v0;
+                    isFullResSide = cellIndex < 9;
+                }
 
                 var normal = cellNormals[v0] * t0 + cellNormals[v1] * t1;
                 //var vertexPosition = GetTransitionVertexPosition(pos, t, v0, v1);
 
-                var p0i = pos + transitionCornerIndex[v0];
+                var p0i = pos + GetTransitionVertexIndices(direction)[v0];
                 var p0 = new Vector3(p0i.x, p0i.y, p0i.z);
-                var p1i = pos + transitionCornerIndex[v1];
+                var p1i = pos + GetTransitionVertexIndices(direction)[v1];
                 var p1 = new Vector3(p1i.x, p1i.y, p1i.z);
                 var vertexPosition = p0 * t0 + p1 * t1;
 
-                if (isFullResSide)
+                if (direction == CubeFaceDirection.NegativeZ)
                 {
-                    vertexPosition = GetSecondaryVertexPosition(vertexPosition, normal, 1);
+                    pos = new Vector3Int(pos.x, pos.y, pos.z);
+                }
+
+                if (isFullResSide && (PositionShouldUseBePushedBack(p0i) || PositionShouldUseBePushedBack(p1i)))
+                {
+                    vertexPosition = GetSecondaryVertexPosition(vertexPosition, normal, 0, 1);
                 }
 
                 int index;
@@ -286,6 +364,57 @@ namespace DarkCanvas.ProceduralTerrain
             }
         }
 
+        private bool PositionShouldUseBePushedBack(Vector3Int pos)
+        {
+            var positionFaceMask = ConvertPositionToFaceMask(pos);
+            if (positionFaceMask == 0 || !FaceTransitionsToLowerLod(positionFaceMask))
+            {
+                return false;
+            }
+
+            //Figure 4.13 in the paper shows cases where lod transitions should not cause
+            //edge positions to be pushed back.
+            if (FaceMaskIsEdge(positionFaceMask))
+            {
+                return ((int)_chunkFacesWithLowerLod & positionFaceMask) == positionFaceMask;
+            }
+
+            return true;
+        }
+
+        private int ConvertPositionToFaceMask(Vector3Int pos)
+        {
+            var faceMask = 0;
+            faceMask |= (pos.x == 0 ? 1 : 0) << 0;
+            faceMask |= (pos.x == _size ? 1 : 0) << 1;
+            faceMask |= (pos.y == 0 ? 1 : 0) << 2;
+            faceMask |= (pos.y == _size ? 1 : 0) << 3;
+            faceMask |= (pos.z == 0 ? 1 : 0) << 4;
+            faceMask |= (pos.z == _size ? 1 : 0) << 5;
+            return faceMask;
+        }
+
+        private bool FaceTransitionsToLowerLod(int faceMask)
+        {
+            var transitionMask = (int)_chunkFacesWithLowerLod;
+            if (transitionMask == 0)
+            {
+                return false;
+            }
+
+            return (transitionMask & faceMask) > 0;
+        }
+
+        private bool FaceMaskIsEdge(int positionFaceMask)
+        {
+            //Checks if the mask is not a power of 2. This tells us whether
+            //or not 2 or more bits in the mask are set, which indicates that
+            //the coordinates used to create the mask or on the edge of
+            //the terrain chunk cube.
+            return (positionFaceMask & (positionFaceMask - 1)) != 0;
+        }
+
+
         //   6--------7
         //  /|       /|
         // / |      / |
@@ -308,41 +437,6 @@ namespace DarkCanvas.ProceduralTerrain
                 _voxelData[x, y + 1, z + 1],
                 _voxelData[x + 1, y + 1, z + 1],
             };
-        }
-
-        private float[] GetTransitionCellCorners(int x, int y, int z)
-        {
-            var cellData = new float[13];
-
-            //  High detail side of the transition cell. Figure 4.16.
-            //  6---7---8
-            //  |   |   |
-            //  3---4---5
-            //  |   |   |
-            //  0---1---2
-            cellData[0x0] = _voxelData[x, y, z];
-            cellData[0x1] = _voxelData[x + 1, y, z];
-            cellData[0x2] = _voxelData[x + 2, y, z];
-            cellData[0x3] = _voxelData[x, y + 1, z];
-            cellData[0x4] = _voxelData[x + 1, y + 1, z];
-            cellData[0x5] = _voxelData[x + 2, y + 1, z];
-            cellData[0x6] = _voxelData[x, y + 2, z];
-            cellData[0x7] = _voxelData[x + 1, y + 2, z];
-            cellData[0x8] = _voxelData[x + 2, y + 2, z];
-
-            //  Low detail side of the transition cell. Figure 4.16.
-            //  They are the same as 0, 2, 6 and 8.
-            //  B-------C
-            //  |       |
-            //  |       |
-            //  |       |
-            //  9-------A
-            cellData[0x9] = cellData[0x0];
-            cellData[0xA] = cellData[0x2];
-            cellData[0xB] = cellData[0x6];
-            cellData[0xC] = cellData[0x8];
-
-            return cellData;
         }
 
         private static long GetCaseCode(float[] cellSamples)
@@ -379,11 +473,11 @@ namespace DarkCanvas.ProceduralTerrain
             return value < 0 ? -1 : 0;
         }
 
-        private Vector3 GetSecondaryVertexPosition(Vector3 primaryPosition, Vector3 normal, int lodIndex)
+        private Vector3 GetSecondaryVertexPosition(Vector3 primaryPosition, Vector3 normal, int lodIndex, int sign = 1)
         {
             var delta = GetBorderOffset(primaryPosition, lodIndex);
             delta = ProjectBorderOffset(delta, normal);
-            return primaryPosition + delta;
+            return primaryPosition + delta * sign;
         }
 
         /// <summary>
@@ -396,21 +490,29 @@ namespace DarkCanvas.ProceduralTerrain
             var p2k = 1 << lodIndex; //2 ^ lod
             var p2mk = 1f / p2k; //2 ^ (-lod)
 
-            const float transitionCellScale = 5f;
-            var wk = transitionCellScale * p2mk;
+            const float transitionCellScale = 0.25f;
+            var wk = transitionCellScale * p2k;
 
             for (var i = 0; i < 3; i++)
             {
                 var p = pos[i];
-                var s = _size;
+                var s = _size - 1;
 
                 if (p < p2k)
                 {
                     delta[i] = (1f - p2mk * p) * wk;
+                    //delta[i] = 0;
                 }
                 else if (p > (p2k * (s - 1)))
                 {
                     delta[i] = (s - 1 - p2mk * p) * wk;
+                    //delta[i] = ((p2k * s) - 1.0f - p) * wk;
+
+                    //delta[i] = 0;
+                }
+                else
+                {
+                    delta[i] = 0;
                 }
             }
 
@@ -422,18 +524,19 @@ namespace DarkCanvas.ProceduralTerrain
         /// </summary>
         private static Vector3 ProjectBorderOffset(Vector3 delta, Vector3 normal)
         {
-            return new Vector3(
+            var defaultProjection = new Vector3(
                 (1 - normal.x * normal.x) * delta.x - normal.y * normal.x * delta.y - normal.z * normal.x * delta.z,
                 -normal.x * normal.y * delta.x + (1 - normal.y * normal.y) * delta.y - normal.z * normal.y * delta.z,
                 -normal.x * normal.z * delta.x - normal.y * normal.z * delta.y + (1 - normal.z * normal.z) * delta.z);
+
+            var newProjection = new Vector3();
+            newProjection.x = defaultProjection.z;
+            newProjection.y = defaultProjection.y;
+            newProjection.z = defaultProjection.x;
+
+            return defaultProjection;
         }
 
-        private static Vector3 InterpolateVoxelVector(float t, Vector3 P0, Vector3 P1)
-        {
-            float u = 1f - t;
-            Vector3 Q = P0 * t + P1 * u; //Density Interpolation
-            return Q;
-        }
 
         //   6--------7
         //  /|       /|
@@ -454,26 +557,68 @@ namespace DarkCanvas.ProceduralTerrain
             new Vector3Int(1, 1, 1)
         };
 
+
         //  6---7---8  B-------C
         //  |   |   |  |       |
         //  3---4---5  |       |
         //  |   |   |  |       |
         //  0---1---2  9-------A
-        private static readonly Vector3Int[] transitionCornerIndex = new Vector3Int[13] {
-            new Vector3Int(0, 0, 0),
-            new Vector3Int(1, 0, 0),
-            new Vector3Int(2, 0, 0),
-            new Vector3Int(0, 1, 0),
-            new Vector3Int(1, 1, 0),
-            new Vector3Int(2, 1, 0),
-            new Vector3Int(0, 2, 0),
-            new Vector3Int(1, 2, 0),
-            new Vector3Int(2, 2, 0),
+        private float[] GetTransitionCellSamples(int x, int y, int z, CubeFaceDirection direction)
+        {
+            var cellData = new float[13];
+            var cellIndices = GetTransitionVertexIndices(direction);
+            for (int i = 0; i < 13; i++)
+            {
+                var offset = cellIndices[i];
+                cellData[i] = _voxelData[x + offset.x, y + offset.y, z + offset.z];
+            }
 
-            new Vector3Int(0, 0, 1),
-            new Vector3Int(2, 0, 1),
-            new Vector3Int(0, 2, 1),
-            new Vector3Int(2, 2, 1)
-        };
+            return cellData;
+        }
+
+        //  6---7---8  B-------C
+        //  |   |   |  |       |
+        //  3---4---5  |       |
+        //  |   |   |  |       |
+        //  0---1---2  9-------A
+        private static Vector3Int[] GetTransitionVertexIndices(
+            CubeFaceDirection direction)
+        {
+            return new Vector3Int[13] {
+                ConvertTransitionCellCoordToVoxelCoord(0, 0, 0, direction), //0
+                ConvertTransitionCellCoordToVoxelCoord(1, 0, 0, direction), //1
+                ConvertTransitionCellCoordToVoxelCoord(2, 0, 0, direction), //2
+                ConvertTransitionCellCoordToVoxelCoord(0, 1, 0, direction), //3
+                ConvertTransitionCellCoordToVoxelCoord(1, 1, 0, direction), //4
+                ConvertTransitionCellCoordToVoxelCoord(2, 1, 0, direction), //5
+                ConvertTransitionCellCoordToVoxelCoord(0, 2, 0, direction), //6
+                ConvertTransitionCellCoordToVoxelCoord(1, 2, 0, direction), //7
+                ConvertTransitionCellCoordToVoxelCoord(2, 2, 0, direction), //8
+                ConvertTransitionCellCoordToVoxelCoord(0, 0, 0, direction), //9
+                ConvertTransitionCellCoordToVoxelCoord(2, 0, 0, direction), //A
+                ConvertTransitionCellCoordToVoxelCoord(0, 2, 0, direction), //B
+                ConvertTransitionCellCoordToVoxelCoord(2, 2, 0, direction) //C
+            };
+        }
+
+        private static Vector3Int ConvertTransitionCellCoordToVoxelCoord(
+            int tx, int ty, int tz, CubeFaceDirection direction)
+        {
+            //Transition cell could be oriented in one of three different ways depending on
+            //the chunk face it is located on.
+            switch (direction)
+            {
+                case CubeFaceDirection.NegativeX:
+                case CubeFaceDirection.PositiveX:
+                    return new Vector3Int(tz, ty, tx);
+                case CubeFaceDirection.NegativeY:
+                case CubeFaceDirection.PositiveY:
+                    return new Vector3Int(tx, tz, ty);
+                case CubeFaceDirection.NegativeZ:
+                case CubeFaceDirection.PositiveZ:
+                default:
+                    return new Vector3Int(tx, ty, tz);
+            }
+        }
     }
 }

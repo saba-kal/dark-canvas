@@ -19,7 +19,7 @@ MonoBehaviour:
     Octaves: 4
     Persistence: 0.532
     Lacunarity: 2.5
-    Seed: 0
+    Seed: 10
     Offset: {x: 0, y: 0, z: 0}
   _useFalloff: 0
   _heightMultiplier: 40
