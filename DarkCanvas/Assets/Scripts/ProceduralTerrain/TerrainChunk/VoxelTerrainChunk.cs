@@ -38,7 +38,7 @@ namespace DarkCanvas.ProceduralTerrain
             _heightMapSettings = terrainChunkParams.HeightMapSettings;
 
             _meshObject = new GameObject("Terrain chunk");
-            _meshObject.transform.position = position;
+            _meshObject.transform.position = position - Vector3Int.one * _scale;
             _meshObject.transform.parent = terrainChunkParams.Parent;
             _meshObject.transform.localScale = Vector3.one * _scale;
 

@@ -105,7 +105,7 @@ namespace DarkCanvas.ProceduralTerrain
             List<int> triangles,
             Dictionary<Vector3, int> vertices2Indices)
         {
-            var density = GetCellCorners(pos.x, pos.y, pos.z);
+            var density = GetCellCorners(offsetPos.x, offsetPos.y, offsetPos.z);
             var caseCode = GetCaseCode(density);
             if (caseCode == 0 || caseCode == 255)
             {
@@ -164,14 +164,14 @@ namespace DarkCanvas.ProceduralTerrain
                 float t0 = t;
                 float t1 = 1f - t;
 
-                var p0i = pos + cornerIndex[v0];
+                var p0i = offsetPos + cornerIndex[v0];
                 var p0 = new Vector3(p0i.x, p0i.y, p0i.z);
-                var p1i = pos + cornerIndex[v1];
+                var p1i = offsetPos + cornerIndex[v1];
                 var p1 = new Vector3(p1i.x, p1i.y, p1i.z);
                 var vertex = p0 * t0 + p1 * t1;
                 var normal = cornerNormals[v0] * t0 + cornerNormals[v1] * t1;
 
-                if (PositionShouldUseBePushedBack(p0i) || PositionShouldUseBePushedBack(p1i))
+                if (PositionShouldUseBePushedBack(p0i - Vector3Int.one) || PositionShouldUseBePushedBack(p1i - Vector3Int.one))
                 {
                     vertex = GetSecondaryVertexPosition(vertex, normal, 0, 1);
                 }
@@ -212,7 +212,7 @@ namespace DarkCanvas.ProceduralTerrain
             Dictionary<Vector3, int> vertices2Indices,
             CubeFaceDirection direction)
         {
-            var cellSamples = GetTransitionCellSamples(pos.x, pos.y, pos.z, direction);
+            var cellSamples = GetTransitionCellSamples(offsetPos.x, offsetPos.y, offsetPos.z, direction);
             var caseCode = GetTransitionCaseCode(cellSamples);
 
             if (caseCode == 0 || caseCode == 511)
@@ -221,16 +221,10 @@ namespace DarkCanvas.ProceduralTerrain
                 return;
             }
 
-            if (offsetPos.x == 15 && offsetPos.y == 15)
-            {
-                Debug.Log(cellSamples[12]);
-            }
-
             var cellNormals = new Vector3[13];
             for (int i = 0; i < 9; i++)
             {
                 var p = offsetPos + GetTransitionVertexIndices(direction)[i];
-                //var p = offsetPos;
                 float nx = (_voxelData[p.x + 1, p.y, p.z] - _voxelData[p.x - 1, p.y, p.z]) * 0.5f;
                 float ny = (_voxelData[p.x, p.y + 1, p.z] - _voxelData[p.x, p.y - 1, p.z]) * 0.5f;
                 float nz = (_voxelData[p.x, p.y, p.z + 1] - _voxelData[p.x, p.y, p.z - 1]) * 0.5f;
@@ -296,7 +290,7 @@ namespace DarkCanvas.ProceduralTerrain
                 float t0 = t;
                 float t1 = 1f - t;
 
-                var isFullResSide = false;
+                bool isFullResSide;
                 if (t > 0 && t < 1)
                 {
                     //Vertex lies in the interior edge
@@ -312,9 +306,9 @@ namespace DarkCanvas.ProceduralTerrain
                 var normal = cellNormals[v0] * t0 + cellNormals[v1] * t1;
                 //var vertexPosition = GetTransitionVertexPosition(pos, t, v0, v1);
 
-                var p0i = pos + GetTransitionVertexIndices(direction)[v0];
+                var p0i = offsetPos + GetTransitionVertexIndices(direction)[v0];
                 var p0 = new Vector3(p0i.x, p0i.y, p0i.z);
-                var p1i = pos + GetTransitionVertexIndices(direction)[v1];
+                var p1i = offsetPos + GetTransitionVertexIndices(direction)[v1];
                 var p1 = new Vector3(p1i.x, p1i.y, p1i.z);
                 var vertexPosition = p0 * t0 + p1 * t1;
 
@@ -323,7 +317,7 @@ namespace DarkCanvas.ProceduralTerrain
                     pos = new Vector3Int(pos.x, pos.y, pos.z);
                 }
 
-                if (isFullResSide && (PositionShouldUseBePushedBack(p0i) || PositionShouldUseBePushedBack(p1i)))
+                if (isFullResSide && (PositionShouldUseBePushedBack(p0i - Vector3Int.one) || PositionShouldUseBePushedBack(p1i - Vector3Int.one)))
                 {
                     vertexPosition = GetSecondaryVertexPosition(vertexPosition, normal, 0, 1);
                 }
